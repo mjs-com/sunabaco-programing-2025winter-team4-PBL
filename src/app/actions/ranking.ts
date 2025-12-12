@@ -181,7 +181,7 @@ export async function getRanking(filter: RankingFilter = {}): Promise<RankingEnt
     );
 
     const ranking: RankingEntry[] = [];
-    for (const [staffId, totalPoints] of pointsByStaff) {
+    Array.from(pointsByStaff.entries()).forEach(([staffId, totalPoints]) => {
       const staffInfo = staffMap.get(staffId);
       if (staffInfo && totalPoints > 0) {
         ranking.push({
@@ -192,7 +192,7 @@ export async function getRanking(filter: RankingFilter = {}): Promise<RankingEnt
           rank: 0,
         });
       }
-    }
+    });
 
     ranking.sort((a, b) => b.total_points - a.total_points);
     ranking.forEach((entry, index) => { entry.rank = index + 1; });
@@ -242,7 +242,7 @@ export async function getRanking(filter: RankingFilter = {}): Promise<RankingEnt
   );
 
   const ranking: RankingEntry[] = [];
-  for (const [staffId, totalPoints] of pointsByStaff) {
+  Array.from(pointsByStaff.entries()).forEach(([staffId, totalPoints]) => {
     const staffInfo = staffMap.get(staffId);
     if (staffInfo && totalPoints > 0) {
       ranking.push({
@@ -253,7 +253,7 @@ export async function getRanking(filter: RankingFilter = {}): Promise<RankingEnt
         rank: 0,
       });
     }
-  }
+  });
 
   ranking.sort((a, b) => b.total_points - a.total_points);
   ranking.forEach((entry, index) => { entry.rank = index + 1; });
