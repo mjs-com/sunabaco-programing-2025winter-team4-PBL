@@ -122,7 +122,7 @@ export async function getRanking(filter: RankingFilter = {}): Promise<RankingEnt
     }
 
     // カテゴリ情報を取得
-    const diaryIds = [...new Set(logs?.filter(l => l.diary_id).map(l => l.diary_id) || [])];
+    const diaryIds = Array.from(new Set(logs?.filter(l => l.diary_id).map(l => l.diary_id) || []));
     let diaryCategories = new Map<number, string>();
     
     if (diaryIds.length > 0) {
