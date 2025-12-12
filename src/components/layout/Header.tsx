@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
-import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy } from 'lucide-react';
+import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy, Calendar, Settings2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -68,32 +68,34 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
 
         {/* フィルターボタン */}
         <div className="flex items-center space-x-2">
+          {/* 至急ボタン - スマホでも文字表示、アクティブ時は背景を濃く */}
           <Button
             variant={currentFilter === 'urgent' ? 'secondary' : 'ghost'}
             size="sm"
             className={cn(
-              "text-red-500 hover:text-red-600 hover:bg-red-50",
-              currentFilter === 'urgent' && "bg-red-50"
+              "text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold transition-all",
+              currentFilter === 'urgent' && "bg-red-100 shadow-sm"
             )}
             title="至急のみ表示"
             onClick={() => toggleFilter('urgent')}
           >
-            <AlertTriangle className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">至急</span>
+            <AlertTriangle className="h-4 w-4 sm:mr-1" />
+            <span className="ml-1 text-xs sm:text-sm">至急</span>
           </Button>
 
+          {/* TODOボタン - スマホでも文字表示、アクティブ時は背景を濃く */}
           <Button
             variant={currentFilter === 'todo' ? 'secondary' : 'ghost'}
             size="sm"
             className={cn(
-              "text-blue-500 hover:text-blue-600 hover:bg-blue-50",
-              currentFilter === 'todo' && "bg-blue-50"
+              "text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-semibold transition-all",
+              currentFilter === 'todo' && "bg-blue-100 shadow-sm"
             )}
             title="未解決のみ表示"
             onClick={() => toggleFilter('todo')}
           >
-            <ClipboardList className="h-4 w-4 mr-1" />
-            <span className="hidden sm:inline">TODO</span>
+            <ClipboardList className="h-4 w-4 sm:mr-1" />
+            <span className="ml-1 text-xs sm:text-sm">TODO</span>
           </Button>
         </div>
 
@@ -150,6 +152,24 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
                   >
                     <Trophy className="h-4 w-4" />
                     <span>ランキング</span>
+                  </Link>
+
+                  <Link
+                    href="/cleaning-duty/calendar"
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Calendar className="h-4 w-4" />
+                    <span>掃除当番カレンダー</span>
+                  </Link>
+
+                  <Link
+                    href="/settings/categories"
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Settings2 className="h-4 w-4" />
+                    <span>カテゴリー設定</span>
                   </Link>
 
                   {isAdmin && (

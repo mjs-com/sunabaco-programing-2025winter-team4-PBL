@@ -12,9 +12,13 @@ export async function getActiveStaff(): Promise<StaffWithRelations[]> {
   const { data, error } = await supabase
     .from('STAFF')
     .select(`
-      *,
-      job_type:JOB_TYPE(*),
-      system_role:SYSTEM_ROLE(*)
+      staff_id,
+      name,
+      job_type_id,
+      job_type:JOB_TYPE(
+        job_type_id,
+        job_name
+      )
     `)
     .eq('is_active', true)
     .order('name');

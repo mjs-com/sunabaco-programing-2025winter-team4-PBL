@@ -10,6 +10,7 @@
 export interface JobType {
   job_type_id: number;
   job_name: string;
+  is_active: boolean;
 }
 
 export interface SystemRole {
@@ -68,6 +69,14 @@ export const DIARY_STATUS = {
 
 export type DiaryStatus = typeof DIARY_STATUS[keyof typeof DIARY_STATUS];
 
+// 日報種別（システム生成など）
+export const DIARY_TYPE = {
+  NORMAL: 'NORMAL',
+  CLEANING_DUTY: 'CLEANING_DUTY',
+} as const;
+
+export type DiaryType = typeof DIARY_TYPE[keyof typeof DIARY_TYPE];
+
 // ユーザーステータス定数
 export const USER_STATUS = {
   UNREAD: 'UNREAD',
@@ -91,6 +100,8 @@ export interface Diary {
   is_hidden: boolean;
   is_deleted: boolean;
   current_status: DiaryStatus;
+  diary_type?: DiaryType; // 日報種別（追加）
+  target_staff_id?: number | null; // 宛先（NULL=全体公開）
   created_at: string;
   updated_at: string;
   updated_by?: number | null; // 編集者
@@ -168,6 +179,19 @@ export interface PointLog {
   amount: number;
   reason: string;
   created_at: string;
+}
+
+// ==========================================
+// 掃除当番（割当）型
+// ==========================================
+
+export interface CleaningDutyAssignment {
+  duty_date: string; // YYYY-MM-DD
+  staff_id: number;
+  created_by?: number | null;
+  updated_by?: number | null;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // ==========================================

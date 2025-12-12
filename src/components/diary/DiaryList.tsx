@@ -14,9 +14,10 @@ interface DiaryListProps {
   onStatusChange?: (diaryId: number, status: UserStatus) => void;
   onDiaryClick?: (diary: DiaryWithRelations) => void;
   onUpdate?: () => void;
+  pendingStatusByDiaryId?: Record<number, boolean>;
 }
 
-export function DiaryList({ diaries, currentUserId, currentUserName, isAdmin, allStaff, jobTypes, onStatusChange, onDiaryClick, onUpdate }: DiaryListProps) {
+export function DiaryList({ diaries, currentUserId, currentUserName, isAdmin, allStaff, jobTypes, onStatusChange, onDiaryClick, onUpdate, pendingStatusByDiaryId }: DiaryListProps) {
   if (diaries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-slate-400">
@@ -48,6 +49,7 @@ export function DiaryList({ diaries, currentUserId, currentUserName, isAdmin, al
               onStatusChange={onStatusChange}
               onClick={onDiaryClick ? () => onDiaryClick(diary) : undefined}
               onUpdate={onUpdate}
+              isStatusUpdating={!!pendingStatusByDiaryId?.[diary.diary_id]}
             />
           ))}
         </div>
@@ -75,6 +77,7 @@ export function DiaryList({ diaries, currentUserId, currentUserName, isAdmin, al
               onStatusChange={onStatusChange}
               onClick={onDiaryClick ? () => onDiaryClick(diary) : undefined}
               onUpdate={onUpdate}
+              isStatusUpdating={!!pendingStatusByDiaryId?.[diary.diary_id]}
             />
           ))}
         </div>

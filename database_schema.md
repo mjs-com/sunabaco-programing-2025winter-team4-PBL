@@ -33,6 +33,8 @@ erDiagram
         string content
         date target_date
         date deadline "期限日（任意）"
+        string diary_type "NORMAL/CLEANING_DUTY"
+        int target_staff_id FK "宛先（NULL=全体公開）"
         
         boolean is_urgent
         int bounty_points "特別報酬ポイント"
@@ -44,6 +46,16 @@ erDiagram
         int solved_by FK "解決者"
         datetime solved_at "解決日時"
         string current_status "UNREAD/CONFIRMED/WORKING/SOLVED"
+        datetime created_at
+        datetime updated_at
+    }
+
+    %% 掃除当番（1日=1人の割当）
+    CLEANING_DUTY_ASSIGNMENT {
+        date duty_date PK
+        int staff_id FK "当番者"
+        int created_by FK
+        int updated_by FK
         datetime created_at
         datetime updated_at
     }
@@ -102,6 +114,7 @@ erDiagram
     STAFF ||--o{ DIARY : creates
     STAFF ||--o{ DIARY : edits
     STAFF ||--o{ DIARY : solves
+    STAFF ||--o{ DIARY : targets
     CATEGORY ||--o{ DIARY : category
     DIARY |o--o{ DIARY : reply
     DIARY ||--o{ DIARY_TAG : has
@@ -111,3 +124,4 @@ erDiagram
     STAFF ||--o{ ACTION_LOG : performs
     DIARY ||--o{ ACTION_LOG : receives
     STAFF ||--o{ POINT_LOG : earns
+    STAFF ||--o{ CLEANING_DUTY_ASSIGNMENT : assigned

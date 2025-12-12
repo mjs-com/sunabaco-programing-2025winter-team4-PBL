@@ -19,6 +19,8 @@ const POINTS = {
   POST_DIARY: 2,
 } as const;
 
+type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
+
 /**
  * 指定日の日報一覧を取得
  */
@@ -32,22 +34,75 @@ export async function getDiariesByDate(
   const supabase = await createClient();
 
   // 外部キーを明示的に指定（複数の外部キーがSTAFFを参照するため）
-  let query = supabase
+  const baseQuery = supabase
     .from('DIARY')
     .select(`
       *,
-      category:CATEGORY(*),
-      staff:STAFF!DIARY_staff_id_fkey(*, job_type:JOB_TYPE(*)),
-      updated_by_staff:STAFF!DIARY_updated_by_fkey(*),
-      solved_by_staff:STAFF!DIARY_solved_by_fkey(*),
+      category:CATEGORY(
+        category_id,
+        category_name,
+        is_active
+      ),
+      staff:STAFF!DIARY_staff_id_fkey(
+        staff_id,
+        name,
+        job_type_id,
+        job_type:JOB_TYPE(
+          job_type_id,
+          job_name
+        )
+      ),
+      updated_by_staff:STAFF!DIARY_updated_by_fkey(
+        staff_id,
+        name
+      ),
+      solved_by_staff:STAFF!DIARY_solved_by_fkey(
+        staff_id,
+        name
+      ),
       user_statuses:USER_DIARY_STATUS(
-        *,
-        staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(*, job_type:JOB_TYPE(*))
+        id,
+        diary_id,
+        staff_id,
+        status,
+        updated_at,
+        staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(
+          staff_id,
+          name,
+          job_type_id,
+          job_type:JOB_TYPE(
+            job_type_id,
+            job_name
+          )
+        )
       ),
       replies:DIARY!parent_id(
         *,
-        staff:STAFF!DIARY_staff_id_fkey(*, job_type:JOB_TYPE(*)),
-        user_statuses:USER_DIARY_STATUS(*, staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(*))
+        staff:STAFF!DIARY_staff_id_fkey(
+          staff_id,
+          name,
+          job_type_id,
+          job_type:JOB_TYPE(
+            job_type_id,
+            job_name
+          )
+        ),
+        user_statuses:USER_DIARY_STATUS(
+          id,
+          diary_id,
+          staff_id,
+          status,
+          updated_at,
+          staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(
+            staff_id,
+            name,
+            job_type_id,
+            job_type:JOB_TYPE(
+              job_type_id,
+              job_name
+            )
+          )
+        )
       )
     `)
     .eq('target_date', targetDate)
@@ -55,12 +110,34 @@ export async function getDiariesByDate(
     .eq('is_hidden', false)
     .is('parent_id', null);
 
-  // 至急フィルター
-  if (filter === 'urgent') {
-    query = query.eq('is_urgent', true);
-  }
+  // 条件を組み立て（DBに target_staff_id がない環境でも動くようにフォールバック）
+  const applyFilters = (q: typeof baseQuery, opts: { includeTargetFilter: boolean }) => {
+    let query = q;
 
-  const { data, error } = await query.order('created_at', { ascending: false });
+    // 宛先（target_staff_id）がある日報は、そのスタッフのみに表示
+    // ※ target_staff_id が未導入のDBでは、この条件を付けるとエラーになるためフォールバックします
+    if (opts.includeTargetFilter) {
+      if (currentStaffId) {
+        query = query.or(`target_staff_id.is.null,target_staff_id.eq.${currentStaffId}`);
+      } else {
+        query = query.is('target_staff_id', null);
+      }
+    }
+
+    // 至急フィルター
+    if (filter === 'urgent') {
+      query = query.eq('is_urgent', true);
+    }
+
+    return query;
+  };
+
+  let { data, error } = await applyFilters(baseQuery, { includeTargetFilter: true }).order('created_at', { ascending: false });
+
+  // target_staff_id 未導入のDBの場合は、宛先フィルタを外して再試行
+  if (error && (error as any).code === '42703' && String((error as any).message || '').includes('target_staff_id')) {
+    ({ data, error } = await applyFilters(baseQuery, { includeTargetFilter: false }).order('created_at', { ascending: false }));
+  }
 
   if (error) {
     console.error('Error fetching diaries:', error);
@@ -200,7 +277,7 @@ export async function createDiary(input: CreateDiaryInput & { staff_id: number }
   // 投稿ポイントを付与
   const pointType = input.parent_id ? POINTS.REPLY : POINTS.POST_DIARY;
   const reason = input.parent_id ? '返信投稿' : '日報投稿';
-  await addPoints(input.staff_id, pointType, reason, diary.diary_id);
+  await addPoints(supabase, input.staff_id, pointType, reason, diary.diary_id);
 
   revalidatePath('/');
   return { success: true, data: diary };
@@ -227,6 +304,7 @@ export async function updateUserDiaryStatus(
   // 同じステータスなら解除（UNREADに戻す）
   const isToggleOff = currentStatus?.status === status;
   const newStatus = isToggleOff ? 'UNREAD' : status;
+  let newDiaryStatus: string | undefined;
 
   // USER_DIARY_STATUSをupsert
   const { error: statusError } = await supabase
@@ -269,7 +347,7 @@ export async function updateUserDiaryStatus(
         action_type: status,
         points_awarded: pointsAmount,
       });
-      await addPoints(staffId, pointsAmount, `日報アクション: ${status}`, diaryId);
+      await addPoints(supabase, staffId, pointsAmount, `日報アクション: ${status}`, diaryId);
     }
   } else {
     // OFFにした場合：ポイントを取り消し
@@ -289,22 +367,25 @@ export async function updateUserDiaryStatus(
         .eq('log_id', existingLog.log_id);
       
       // ポイントを減算
-      await addPoints(staffId, -existingLog.points_awarded, `日報アクション取消: ${status}`, diaryId);
+      await addPoints(supabase, staffId, -existingLog.points_awarded, `日報アクション取消: ${status}`, diaryId);
     }
   }
 
   // 解決ステータスの場合、DIARYテーブルも更新
   if (status === 'SOLVED') {
     if (!isToggleOff) {
+      const solvedAt = new Date().toISOString();
       // 解決ONにした場合
       await supabase
         .from('DIARY')
         .update({
           current_status: 'SOLVED',
           solved_by: staffId,
-          solved_at: new Date().toISOString(),
+          solved_at: solvedAt,
         })
         .eq('diary_id', diaryId);
+      
+      newDiaryStatus = 'SOLVED';
     } else {
       // 解決OFFにした場合、元のステータスに戻す
       // 作業中のユーザーがいればWORKING、確認済みのユーザーがいればCONFIRMED、それ以外はUNREAD
@@ -314,21 +395,23 @@ export async function updateUserDiaryStatus(
         .eq('diary_id', diaryId)
         .neq('status', 'UNREAD');
 
-      let newDiaryStatus = 'UNREAD';
+      let computedDiaryStatus = 'UNREAD';
       if (statuses?.some(s => s.status === 'WORKING')) {
-        newDiaryStatus = 'WORKING';
+        computedDiaryStatus = 'WORKING';
       } else if (statuses?.some(s => s.status === 'CONFIRMED')) {
-        newDiaryStatus = 'CONFIRMED';
+        computedDiaryStatus = 'CONFIRMED';
       }
 
       await supabase
         .from('DIARY')
         .update({
-          current_status: newDiaryStatus,
+          current_status: computedDiaryStatus,
           solved_by: null,
           solved_at: null,
         })
         .eq('diary_id', diaryId);
+      
+      newDiaryStatus = computedDiaryStatus;
     }
   } else if (!isToggleOff) {
     // 解決以外のステータスでONにした場合、DIARYのcurrent_statusを更新
@@ -344,24 +427,25 @@ export async function updateUserDiaryStatus(
         .from('DIARY')
         .update({ current_status: newStatus })
         .eq('diary_id', diaryId);
+      
+      newDiaryStatus = newStatus;
     }
   }
 
   revalidatePath('/');
-  return { success: true, isToggleOff };
+  return { success: true, isToggleOff, newUserStatus: newStatus, newDiaryStatus };
 }
 
 /**
  * ポイントを付与する内部関数
  */
 async function addPoints(
+  supabase: SupabaseServerClient,
   staffId: number,
   amount: number,
   reason: string,
   diaryId?: number
 ) {
-  const supabase = await createClient();
-
   // POINT_LOGに履歴を追加
   await supabase.from('POINT_LOG').insert({
     staff_id: staffId,
@@ -416,7 +500,25 @@ export async function getCurrentStaff() {
   // メールアドレスでSTAFFを検索
   const { data: staff } = await supabase
     .from('STAFF')
-    .select('*, job_type:JOB_TYPE(*), system_role:SYSTEM_ROLE(*)')
+    .select(`
+      staff_id,
+      name,
+      email,
+      job_type_id,
+      system_role_id,
+      is_active,
+      current_points,
+      created_at,
+      updated_at,
+      job_type:JOB_TYPE(
+        job_type_id,
+        job_name
+      ),
+      system_role:SYSTEM_ROLE(
+        role_id,
+        role_name
+      )
+    `)
     .eq('email', user.email)
     .single();
 
