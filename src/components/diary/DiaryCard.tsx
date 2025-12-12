@@ -422,7 +422,7 @@ export function DiaryCard({
               <div className="flex items-center gap-2">
                 <Switch
                   checked={isUrgentReply}
-                  onCheckedChange={setIsUrgentReply}
+                  onChange={(e) => setIsUrgentReply(e.target.checked)}
                   id="urgent-reply"
                 />
                 <label htmlFor="urgent-reply" className="text-sm text-slate-600 flex items-center gap-1">
