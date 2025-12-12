@@ -206,7 +206,7 @@ export function MasterEditList({ title, description, items, onSave, onToggleStat
                       <span className="text-xs text-slate-500">{item.is_active ? '有効' : '無効'}</span>
                       <Switch
                         checked={item.is_active}
-                        onCheckedChange={() => handleToggleStatus(item.id, item.is_active)}
+                        onChange={() => handleToggleStatus(item.id, item.is_active)}
                         disabled={isPending}
                       />
                     </div>
