@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useTransition } from 'react';
-import { AlertTriangle, CheckCircle, Clock, MessageSquare, CheckCheck, Send, X, Edit2, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Clock, MessageSquare, CheckCheck, Send, X, Edit2, Trash2, ChevronDown, ChevronUp } from 'lucide-react';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
@@ -21,6 +21,8 @@ interface DiaryCardProps {
   onStatusChange?: (diaryId: number, status: UserStatus) => void;
   onClick?: () => void;
   onUpdate?: () => void;
+  isStatusUpdating?: boolean;
+  hideActions?: boolean;
 }
 
 // 職種に応じたアイコンの背景色を取得
@@ -80,8 +82,13 @@ export function DiaryCard({
   jobTypes = [],
   onStatusChange, 
   onClick, 
-  onUpdate 
+  onUpdate,
+  isStatusUpdating = false,
+  hideActions = false,
 }: DiaryCardProps) {
+  // 折りたたみ状態を管理（デフォルトは展開）
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  
   const [showReplyForm, setShowReplyForm] = useState(false);
   const [isUrgentReply, setIsUrgentReply] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -225,7 +232,10 @@ export function DiaryCard({
 
   // ステータスごとにユーザーをグループ化
   const workingUsers = diary.user_statuses?.filter(us => us.status === 'WORKING') || [];
-  const confirmedUsers = diary.user_statuses?.filter(us => us.status === 'CONFIRMED') || [];
+  // const confirmedUsers = diary.user_statuses?.filter(us => us.status === 'CONFIRMED') || [];
+  const confirmedUsers = diary.user_statuses?.filter(us =>
+    us.status === 'CONFIRMED' || us.status === 'WORKING' || us.status === 'SOLVED'
+  ) || [];
   const solvedUsers = diary.user_statuses?.filter(us => us.status === 'SOLVED') || [];
   
   // 確認済み・作業中・解決済みのスタッフID
@@ -245,27 +255,36 @@ export function DiaryCard({
 
   return (
     <Card className={cn(
-      'transition-all hover:shadow-md',
-      getBorderStyle()
+      'transition-all duration-300 ease-in-out hover:shadow-md',
+      getBorderStyle(),
+      isCollapsed && 'shadow-sm'
     )}>
-      <CardHeader 
+      <CardHeader
         className={cn(
-          "pb-2 border-b-2 rounded-t-lg",
-          getCategoryHeaderColor(diary.category?.category_name),
-          onClick && "cursor-pointer hover:opacity-90 transition-all"
+          "border-b-2 rounded-t-lg transition-all select-none",
+          getCategoryHeaderColor(diary.category?.category_name)
         )}
-        onClick={onClick}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="flex-1 min-w-0">
+        <div className="flex items-start justify-between w-full">
+
+          {/* 左：タイトルクリックで詳細・編集モーダル */}
+          <div
+            className="flex-1 min-w-0 cursor-pointer"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClick?.(); // 詳細+編集モーダル
+            }}
+          >
             {/* タイトル行 */}
             <div className="flex items-center gap-2 flex-wrap">
               {diary.is_urgent && diary.current_status !== 'SOLVED' && (
                 <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
               )}
+
               <h3 className="font-semibold text-slate-800 truncate">
                 {diary.title}
               </h3>
+
               {diary.deadline && diary.current_status !== 'SOLVED' && (
                 <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
                   期限: {formatDate(diary.deadline)}
@@ -273,34 +292,58 @@ export function DiaryCard({
               )}
             </div>
 
-            {/* メタ情報 */}
+            {/* meta info */}
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <CategoryBadge categoryName={diary.category?.category_name || ''} />
-              <span className="text-xs text-slate-500">
-                {diary.staff?.name || '不明'}
-              </span>
-              <span className="text-xs text-slate-400">
-                {formatTime(diary.created_at)}
-              </span>
+              <span className="text-xs text-slate-500">{diary.staff?.name || '不明'}</span>
+              <span className="text-xs text-slate-400">{formatTime(diary.created_at)}</span>
               {isEdited && (
-                <span className="text-xs text-slate-400 italic">
-                  編集済み
-                </span>
+                <span className="text-xs text-slate-400 italic">編集済み</span>
               )}
             </div>
+          </div>
 
-            {/* 解決者表示 */}
-            {diary.current_status === 'SOLVED' && diary.solved_by_staff && (
-              <div className="mt-2 text-xs text-purple-600 bg-purple-50 px-2 py-1 rounded inline-block">
-                解決者: {diary.solved_by_staff.name}
-                {diary.solved_at && ` (${formatDate(diary.solved_at)} ${formatTime(diary.solved_at)})`}
-              </div>
-            )}
+          {/* 右：編集 + 開閉 */}
+          <div className="flex items-center gap-1 pl-2">
+
+            {/* 編集ボタン（同じモーダルを開く） */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick?.(); // 詳細/編集モーダル
+              }}
+              className="p-2 rounded hover:bg-slate-200 transition-colors"
+              title="編集"
+            >
+              <Edit2 className="h-4 w-4 text-slate-600" />
+            </button>
+
+            {/* 開閉ボタン */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCollapsed(!isCollapsed);
+              }}
+              className="p-2 rounded hover:bg-slate-200 transition-colors"
+              title={isCollapsed ? '展開する' : '折りたたむ'}
+            >
+              {isCollapsed ? (
+                <ChevronDown className="h-5 w-5 text-slate-600" />
+              ) : (
+                <ChevronUp className="h-5 w-5 text-slate-600" />
+              )}
+            </button>
           </div>
         </div>
       </CardHeader>
 
-      <CardContent className="py-3 space-y-4">
+      {/* 折りたたみ時は非表示 */}
+      <div className={cn(
+        "transition-all duration-300 ease-in-out overflow-hidden",
+        isCollapsed ? "max-h-0 opacity-0" : "max-h-[5000px] opacity-100"
+      )}>
+
+        <CardContent className="py-3 space-y-4">
         <p className="text-sm text-slate-600 whitespace-pre-wrap">
           {diary.content}
         </p>
@@ -464,60 +507,67 @@ export function DiaryCard({
       </CardContent>
 
       {/* アクションボタン */}
-      <CardFooter className="flex-col items-stretch gap-3">
+      {!hideActions && (
+        <CardFooter className="flex-col items-stretch gap-3">
         {/* 1行目: 確認した、作業中、解決済み */}
         <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "flex-1 min-w-[70px] text-green-600 border-green-200",
-              currentUserStatus === 'CONFIRMED' 
-                ? "bg-green-100 hover:bg-green-200" 
-                : "hover:bg-green-50"
-            )}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStatusChange('CONFIRMED' as UserStatus);
-            }}
-          >
-            <CheckCircle className="h-4 w-4 mr-1" />
-            確認した
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "flex-1 min-w-[70px] text-blue-600 border-blue-200",
-              currentUserStatus === 'WORKING' 
-                ? "bg-blue-100 hover:bg-blue-200" 
-                : "hover:bg-blue-50"
-            )}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStatusChange('WORKING' as UserStatus);
-            }}
-          >
-            <Clock className="h-4 w-4 mr-1" />
-            作業中
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            className={cn(
-              "flex-1 min-w-[70px] text-purple-600 border-purple-200",
-              (currentUserStatus === 'SOLVED' || diary.current_status === 'SOLVED')
-                ? "bg-purple-100 hover:bg-purple-200" 
-                : "hover:bg-purple-50"
-            )}
-            onClick={(e) => {
-              e.stopPropagation();
-              handleStatusChange('SOLVED' as UserStatus);
-            }}
-          >
-            <CheckCheck className="h-4 w-4 mr-1" />
-            解決済み
-          </Button>
+            {/* 旧: className={cn(
+            "flex-1 min-w-[70px] text-green-600 border-green-200",
+            currentUserStatus === 'CONFIRMED'
+              ? "bg-green-100 hover:bg-green-200"
+              : "hover:bg-green-50"
+          )} */}
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "flex-1 min-w-[70px] text-green-600 border-green-200",
+                (currentUserStatus === 'CONFIRMED' || currentUserStatus === 'WORKING' || currentUserStatus === 'SOLVED')
+                  ? "bg-green-100 hover:bg-green-200"
+                  : "hover:bg-green-50"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStatusChange('CONFIRMED' as UserStatus);
+              }}
+            >
+              <CheckCircle className="h-4 w-4 mr-1" />
+              確認した
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "flex-1 min-w-[70px] text-blue-600 border-blue-200",
+                currentUserStatus === 'WORKING'
+                  ? "bg-blue-100 hover:bg-blue-200"
+                  : "hover:bg-blue-50"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStatusChange('WORKING' as UserStatus);
+              }}
+            >
+              <Clock className="h-4 w-4 mr-1" />
+              作業中
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "flex-1 min-w-[70px] text-purple-600 border-purple-200",
+                (currentUserStatus === 'SOLVED' || diary.current_status === 'SOLVED')
+                  ? "bg-purple-100 hover:bg-purple-200"
+                  : "hover:bg-purple-50"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleStatusChange('SOLVED' as UserStatus);
+              }}
+            >
+              <CheckCheck className="h-4 w-4 mr-1" />
+              解決済み
+            </Button>
         </div>
         
         {/* 2行目: 返信するボタン（モバイルで大きく表示） */}
@@ -619,7 +669,9 @@ export function DiaryCard({
             )}
           </div>
         )}
-      </CardFooter>
+        </CardFooter>
+      )}
+      </div>
     </Card>
   );
 }

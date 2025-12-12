@@ -37,3 +37,20 @@ ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS updated_by INT REFERENCES "STAFF"(s
 - `deadline`は任意項目（設定しなくても投稿可能）
 - `solved_by`と`solved_at`は解決ボタン押下時に自動設定
 
+## 2025-12-12 - JOB_TYPEテーブルに論理削除用フラグ追加
+
+**変更日時**: 2025-12-12  
+**変更内容**: 職種（JOB_TYPE）の論理削除を可能にするため、is_activeカラムを追加
+
+**SQL文**:
+```sql
+ALTER TABLE "JOB_TYPE" ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true NOT NULL;
+```
+
+**変更理由**:
+- 職種カテゴリーの編集画面にて、使用しなくなった職種を削除（無効化）できるようにするため。
+- CATEGORYテーブルには既にis_activeが存在するため、JOB_TYPEにも合わせる。
+
+**影響範囲**:
+- `JOB_TYPE`テーブル
+- 職種一覧の取得処理（is_active=trueのみ取得するように変更が必要）

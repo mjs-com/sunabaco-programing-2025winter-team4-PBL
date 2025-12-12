@@ -44,7 +44,9 @@ export function DiaryDetailModal({
   const [loadedJobTypes, setLoadedJobTypes] = useState<JobType[]>(jobTypes);
 
   const isOwner = diary.staff_id === currentUserId;
-  const canEdit = isOwner || isAdmin;
+  // diary_type カラムが存在しない場合は undefined になるため安全にチェック
+  const isCleaningDuty = (diary as any).diary_type === 'CLEANING_DUTY';
+  const canEdit = (isOwner || isAdmin) && !isCleaningDuty;
 
   // スタッフ一覧と職種一覧をロード（まだロードされていない場合）
   useEffect(() => {
