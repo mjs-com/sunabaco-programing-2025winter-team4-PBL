@@ -73,8 +73,8 @@ export default function CleaningDutyCalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // 編集UI（管理者は常に編集モード）
-  const isAdmin = currentStaff?.system_role_id === 1;
+  // 編集権限（ログイン中のユーザーは全員編集可能）
+  const canEdit = !!currentStaff;
 
   // 繰り返し登録モーダル
   const [showRecurringModal, setShowRecurringModal] = useState(false);
@@ -186,7 +186,7 @@ export default function CleaningDutyCalendarPage() {
   }, [monthRange.startISO, monthRange.endISO]);
 
   const openDayModal = (iso: string) => {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     setError(null);
     setSuccess(null);
     setDayDate(iso);
@@ -260,7 +260,7 @@ export default function CleaningDutyCalendarPage() {
   };
 
   const handleSaveRecurring = () => {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     setError(null);
     setSuccess(null);
 
@@ -286,7 +286,7 @@ export default function CleaningDutyCalendarPage() {
   };
 
   const handleSaveDay = () => {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     if (!dayDate) return;
 
     setError(null);
@@ -333,7 +333,7 @@ export default function CleaningDutyCalendarPage() {
   };
 
   const handleDeleteDay = () => {
-    if (!isAdmin) return;
+    if (!canEdit) return;
     if (!dayDate) return;
 
     setError(null);
@@ -383,7 +383,7 @@ export default function CleaningDutyCalendarPage() {
             掃除当番カレンダー
           </h1>
 
-          {isAdmin && (
+          {canEdit && (
             <Button
               variant="outline"
               size="sm"
@@ -413,7 +413,7 @@ export default function CleaningDutyCalendarPage() {
               <div>
                 <CardTitle className="text-lg">{formatYearMonth(monthCursor)}</CardTitle>
                 <p className="text-xs text-slate-500 mt-1">
-                  {isAdmin
+                  {canEdit
                     ? '日付をクリックするとその日の当番を変更できます'
                     : '当番者には当日、トップページに「本日の掃除当番」日報が表示されます'}
                 </p>
@@ -477,12 +477,12 @@ export default function CleaningDutyCalendarPage() {
                         key={cell.iso}
                         type="button"
                         onClick={() => {
-                          if (isAdmin) openDayModal(cell.iso);
+                          if (canEdit) openDayModal(cell.iso);
                         }}
                         className={cn(
                           'h-20 rounded-lg border text-left p-2 transition-all',
-                          isAdmin && 'cursor-pointer hover:opacity-80 hover:shadow-md',
-                          !isAdmin && 'cursor-default',
+                          canEdit && 'cursor-pointer hover:opacity-80 hover:shadow-md',
+                          !canEdit && 'cursor-default',
                           isToday && 'border-primary-500 ring-2 ring-primary-100',
                           !staffId && isSunday && 'border-red-100',
                           !staffId && isSaturday && 'border-blue-100'
@@ -490,8 +490,8 @@ export default function CleaningDutyCalendarPage() {
                         style={{
                           backgroundColor: staffColor || (staffId ? '#e2e8f0' : '#ffffff'),
                         }}
-                        disabled={!isAdmin || isPending}
-                        title={isAdmin ? 'クリックして当番を変更' : undefined}
+                        disabled={!canEdit || isPending}
+                        title={canEdit ? 'クリックして当番を変更' : undefined}
                       >
                         <span
                           className={cn(
@@ -514,7 +514,7 @@ export default function CleaningDutyCalendarPage() {
         </Card>
 
         {/* 繰り返し登録モーダル */}
-        {showRecurringModal && isAdmin && (
+        {showRecurringModal && canEdit && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowRecurringModal(false)}>
             <div
               className="w-full max-w-lg rounded-lg bg-white shadow-xl"
@@ -610,7 +610,7 @@ export default function CleaningDutyCalendarPage() {
         )}
 
         {/* 単日編集モーダル */}
-        {showDayModal && isAdmin && (
+        {showDayModal && canEdit && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setShowDayModal(false)}>
             <div
               className="w-full max-w-md rounded-lg bg-white shadow-xl"

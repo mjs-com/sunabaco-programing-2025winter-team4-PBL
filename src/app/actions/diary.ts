@@ -283,6 +283,255 @@ export async function createDiary(input: CreateDiaryInput & { staff_id: number }
   return { success: true, data: diary };
 }
 
+// 繰り返しパターンの型
+type RecurrenceType = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
+type CustomIntervalUnit = 'days' | 'weeks' | 'months' | 'years';
+
+interface RecurrenceConfig {
+  type: RecurrenceType;
+  endDate: string; // YYYY-MM-DD
+  weekDays?: number[]; // 0-6 (日-土) - 毎週用
+  // カスタム（日付）用
+  customInterval?: number;
+  customIntervalUnit?: CustomIntervalUnit;
+  // カスタム（曜日）用：複数の第N週と曜日
+  customWeeksOfMonth?: number[]; // [1,2,3,4,5] 複数選択可
+  customDaysOfWeek?: number[]; // [0-6] 複数選択可
+  // 旧形式（後方互換）
+  customWeekOfMonth?: number; // 1-5
+  customDayOfWeek?: number; // 0-6
+}
+
+/**
+ * 繰り返しパターンに基づいて日付リストを生成
+ */
+function generateRecurringDates(startDate: string, config: RecurrenceConfig): string[] {
+  const dates: string[] = [];
+  const start = new Date(`${startDate}T00:00:00`);
+  const end = new Date(`${config.endDate}T00:00:00`);
+  
+  if (start > end) return dates;
+
+  const addDate = (d: Date) => {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    dates.push(`${year}-${month}-${day}`);
+  };
+
+  // 最大1000件まで（無限ループ防止）
+  const MAX_DATES = 1000;
+
+  switch (config.type) {
+    case 'daily': {
+      let current = new Date(start);
+      while (current <= end && dates.length < MAX_DATES) {
+        addDate(current);
+        current.setDate(current.getDate() + 1);
+      }
+      break;
+    }
+
+    case 'weekly': {
+      const weekDays = config.weekDays || [start.getDay()];
+      let current = new Date(start);
+      while (current <= end && dates.length < MAX_DATES) {
+        if (weekDays.includes(current.getDay())) {
+          addDate(current);
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      break;
+    }
+
+    case 'monthly': {
+      const dayOfMonth = start.getDate();
+      let current = new Date(start);
+      while (current <= end && dates.length < MAX_DATES) {
+        // 月末日を超える場合は月末日を使用
+        const lastDay = new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate();
+        current.setDate(Math.min(dayOfMonth, lastDay));
+        if (current <= end) {
+          addDate(current);
+        }
+        current.setMonth(current.getMonth() + 1);
+      }
+      break;
+    }
+
+    case 'yearly': {
+      const month = start.getMonth();
+      const dayOfMonth = start.getDate();
+      let current = new Date(start);
+      while (current <= end && dates.length < MAX_DATES) {
+        current.setMonth(month);
+        const lastDay = new Date(current.getFullYear(), month + 1, 0).getDate();
+        current.setDate(Math.min(dayOfMonth, lastDay));
+        if (current <= end) {
+          addDate(current);
+        }
+        current.setFullYear(current.getFullYear() + 1);
+      }
+      break;
+    }
+
+    case 'custom': {
+      // カスタム（曜日）：複数の第N週と曜日の組み合わせ
+      if (config.customWeeksOfMonth && config.customWeeksOfMonth.length > 0 &&
+          config.customDaysOfWeek && config.customDaysOfWeek.length > 0) {
+        let currentMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+        while (currentMonth <= end && dates.length < MAX_DATES) {
+          // 選択された各週と各曜日の組み合わせで日付を生成
+          for (const week of config.customWeeksOfMonth) {
+            for (const day of config.customDaysOfWeek) {
+              const targetDate = getNthWeekdayOfMonth(
+                currentMonth.getFullYear(),
+                currentMonth.getMonth(),
+                week,
+                day
+              );
+              if (targetDate && targetDate >= start && targetDate <= end) {
+                addDate(targetDate);
+              }
+            }
+          }
+          currentMonth.setMonth(currentMonth.getMonth() + 1);
+        }
+        // 日付を昇順にソート（複数の週・曜日で順番がバラバラになるため）
+        dates.sort();
+        break;
+      }
+
+      // 旧形式：単一の第N週と曜日
+      if (config.customWeekOfMonth && config.customDayOfWeek !== undefined) {
+        let currentMonth = new Date(start.getFullYear(), start.getMonth(), 1);
+        const interval = config.customInterval || 1;
+        while (currentMonth <= end && dates.length < MAX_DATES) {
+          const targetDate = getNthWeekdayOfMonth(
+            currentMonth.getFullYear(),
+            currentMonth.getMonth(),
+            config.customWeekOfMonth,
+            config.customDayOfWeek
+          );
+          if (targetDate && targetDate >= start && targetDate <= end) {
+            addDate(targetDate);
+          }
+          currentMonth.setMonth(currentMonth.getMonth() + interval);
+        }
+        break;
+      }
+
+      // カスタム（日付）：〇日ごと、〇週ごと、〇ヶ月ごと、〇年ごと
+      const interval = config.customInterval || 1;
+      const unit = config.customIntervalUnit || 'days';
+      let current = new Date(start);
+      
+      while (current <= end && dates.length < MAX_DATES) {
+        addDate(current);
+        switch (unit) {
+          case 'days':
+            current.setDate(current.getDate() + interval);
+            break;
+          case 'weeks':
+            current.setDate(current.getDate() + interval * 7);
+            break;
+          case 'months':
+            current.setMonth(current.getMonth() + interval);
+            break;
+          case 'years':
+            current.setFullYear(current.getFullYear() + interval);
+            break;
+        }
+      }
+      break;
+    }
+  }
+
+  return dates;
+}
+
+/**
+ * 指定月の第N週の指定曜日の日付を取得
+ */
+function getNthWeekdayOfMonth(year: number, month: number, weekOfMonth: number, dayOfWeek: number): Date | null {
+  const firstDay = new Date(year, month, 1);
+  const firstDayOfWeek = firstDay.getDay();
+  
+  // 最初のその曜日の日を計算
+  let firstOccurrence = 1 + ((dayOfWeek - firstDayOfWeek + 7) % 7);
+  
+  // 第N週の日を計算
+  const targetDay = firstOccurrence + (weekOfMonth - 1) * 7;
+  
+  // 月末を超える場合はnull
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  if (targetDay > lastDay) return null;
+  
+  return new Date(year, month, targetDay);
+}
+
+/**
+ * 繰り返し日報を一括作成
+ */
+export async function createRecurringDiaries(
+  input: CreateDiaryInput & { staff_id: number },
+  recurrence: RecurrenceConfig
+) {
+  const dates = generateRecurringDates(input.target_date, recurrence);
+  
+  if (dates.length === 0) {
+    return { success: false, error: '繰り返し日付が生成されませんでした' };
+  }
+
+  if (dates.length > 100) {
+    return { success: false, error: `繰り返し日報が多すぎます（${dates.length}件）。終了日を短くしてください。` };
+  }
+
+  const supabase = await createClient();
+  const results: Array<{ date: string; success: boolean; error?: string }> = [];
+
+  for (const date of dates) {
+    const { data: diary, error: diaryError } = await supabase
+      .from('DIARY')
+      .insert({
+        category_id: input.category_id,
+        staff_id: input.staff_id,
+        title: input.title,
+        content: input.content,
+        target_date: date,
+        is_urgent: input.is_urgent || false,
+        bounty_points: input.bounty_points || null,
+        current_status: 'UNREAD',
+        parent_id: null,
+        deadline: input.deadline || null,
+      })
+      .select('diary_id')
+      .single();
+
+    if (diaryError) {
+      results.push({ date, success: false, error: diaryError.message });
+    } else {
+      results.push({ date, success: true });
+      // 投稿ポイントは最初の1件のみ
+      if (date === dates[0]) {
+        await addPoints(supabase, input.staff_id, POINTS.POST_DIARY, '日報投稿（繰り返し）', diary.diary_id);
+      }
+    }
+  }
+
+  revalidatePath('/');
+  
+  const successCount = results.filter((r) => r.success).length;
+  return {
+    success: true,
+    data: {
+      total: dates.length,
+      successCount,
+      results,
+    },
+  };
+}
+
 /**
  * ユーザーステータスを更新（トグル対応）
  */

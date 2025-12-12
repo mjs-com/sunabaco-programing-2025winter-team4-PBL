@@ -154,6 +154,7 @@ export async function getCleaningDutyAssignmentsByRange(
  * 掃除当番を「繰り返し」で登録（指定曜日のみ）
  * - staffId=0 の場合は該当日を削除（担当者なし）
  * - duty_dateは既存と衝突したら上書き
+ * - 一般ユーザーも編集可能
  */
 export async function upsertCleaningDutyAssignments(params: {
   staffId: number;
@@ -163,9 +164,6 @@ export async function upsertCleaningDutyAssignments(params: {
 }) {
   const currentStaff = await getCurrentStaff();
   if (!currentStaff) return { success: false, error: 'ログインが必要です' };
-
-  const isAdmin = currentStaff.system_role_id === 1;
-  if (!isAdmin) return { success: false, error: '管理者のみ操作できます' };
 
   const { staffId, startDate, endDate, weekDays } = params;
 
@@ -239,13 +237,11 @@ export async function upsertCleaningDutyAssignments(params: {
 
 /**
  * 特定日の掃除当番を設定（単日）
+ * - 一般ユーザーも編集可能
  */
 export async function setCleaningDutyAssignmentForDate(dutyDate: string, staffId: number) {
   const currentStaff = await getCurrentStaff();
   if (!currentStaff) return { success: false, error: 'ログインが必要です' };
-
-  const isAdmin = currentStaff.system_role_id === 1;
-  if (!isAdmin) return { success: false, error: '管理者のみ操作できます' };
 
   const supabase = await createClient();
 
@@ -271,13 +267,11 @@ export async function setCleaningDutyAssignmentForDate(dutyDate: string, staffId
 
 /**
  * 特定日の掃除当番を解除（単日）
+ * - 一般ユーザーも編集可能
  */
 export async function deleteCleaningDutyAssignmentForDate(dutyDate: string) {
   const currentStaff = await getCurrentStaff();
   if (!currentStaff) return { success: false, error: 'ログインが必要です' };
-
-  const isAdmin = currentStaff.system_role_id === 1;
-  if (!isAdmin) return { success: false, error: '管理者のみ操作できます' };
 
   const supabase = await createClient();
 
@@ -358,13 +352,23 @@ export async function getOrCreateCleaningDutyDiary(dutyDate: string): Promise<Di
     return null;
   }
 
+  // 当番者の名前を取得してメンションに使用
+  const { data: assignee } = await supabase
+    .from('STAFF')
+    .select('name')
+    .eq('staff_id', assigneeId)
+    .single();
+  
+  const assigneeName = assignee?.name || '';
+  const mentionText = assigneeName ? `@${assigneeName} ` : '';
+
   const { data: created, error: createError } = await supabase
     .from('DIARY')
     .insert({
       category_id: categoryId,
       staff_id: assigneeId,
       title: '本日の掃除当番はあなたです',
-      content: '本日の掃除当番です。完了したら「解決済み」を押してください。',
+      content: `${mentionText}本日の掃除当番です。完了したら「解決済み」を押してください。`,
       target_date: dutyDate,
       is_urgent: false,
       bounty_points: null,
