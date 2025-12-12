@@ -7,6 +7,7 @@ interface UpdateProfileInput {
   staff_id: number;
   name?: string;
   email?: string;
+  personal_color?: string | null;
 }
 
 interface UpdatePasswordInput {
@@ -26,9 +27,10 @@ export async function updateProfile(input: UpdateProfileInput) {
   const supabase = await createClient();
 
   // スタッフ情報の更新
-  const updateData: { name?: string; email?: string } = {};
+  const updateData: { name?: string; email?: string; personal_color?: string | null } = {};
   if (input.name) updateData.name = input.name;
   if (input.email) updateData.email = input.email;
+  if (input.personal_color !== undefined) updateData.personal_color = input.personal_color;
 
   const { error: staffError } = await supabase
     .from('STAFF')
@@ -57,6 +59,28 @@ export async function updateProfile(input: UpdateProfileInput) {
   }
 
   revalidatePath('/mypage');
+  revalidatePath('/cleaning-duty/calendar');
+  return { success: true };
+}
+
+/**
+ * パーソナルカラーのみを更新
+ */
+export async function updatePersonalColor(staffId: number, color: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from('STAFF')
+    .update({ personal_color: color })
+    .eq('staff_id', staffId);
+
+  if (error) {
+    console.error('Error updating personal color:', error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath('/mypage');
+  revalidatePath('/cleaning-duty/calendar');
   return { success: true };
 }
 

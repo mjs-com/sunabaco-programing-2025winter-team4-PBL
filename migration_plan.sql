@@ -52,6 +52,15 @@ CREATE UNIQUE INDEX IF NOT EXISTS "diary_cleaning_duty_unique"
   WHERE diary_type = 'CLEANING_DUTY' AND parent_id IS NULL;
 
 -- =============================================
+-- マイグレーション: パーソナルカラー機能追加
+-- 実行日: 2025-12-12
+-- =============================================
+
+-- 10. スタッフのパーソナルカラー（カレンダー表示用）
+ALTER TABLE "STAFF" ADD COLUMN IF NOT EXISTS personal_color TEXT;
+
+-- =============================================
 -- 確認用クエリ
 -- =============================================
 -- SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'DIARY';
+-- SELECT column_name, data_type FROM information_schema.columns WHERE table_name = 'STAFF';

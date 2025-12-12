@@ -152,6 +152,7 @@ export async function getCleaningDutyAssignmentsByRange(
 
 /**
  * 掃除当番を「繰り返し」で登録（指定曜日のみ）
+ * - staffId=0 の場合は該当日を削除（担当者なし）
  * - duty_dateは既存と衝突したら上書き
  */
 export async function upsertCleaningDutyAssignments(params: {
@@ -168,7 +169,7 @@ export async function upsertCleaningDutyAssignments(params: {
 
   const { staffId, startDate, endDate, weekDays } = params;
 
-  if (!staffId || !startDate || !endDate) {
+  if (!startDate || !endDate) {
     return { success: false, error: '入力が不足しています' };
   }
 
@@ -188,29 +189,41 @@ export async function upsertCleaningDutyAssignments(params: {
     return { success: false, error: '曜日を1つ以上選択してください' };
   }
 
-  const rows: Array<{
-    duty_date: string;
-    staff_id: number;
-    updated_by: number;
-    updated_at: string;
-  }> = [];
-
-  // ループで日付を生成（1年分でも最大366件程度）
+  // 対象日付を列挙
+  const targetDates: string[] = [];
   let cursor = startDate;
   while (parseISODate(cursor) <= end) {
     const d = parseISODate(cursor);
     if (normalizedWeekDays.includes(d.getDay())) {
-      rows.push({
-        duty_date: cursor,
-        staff_id: staffId,
-        updated_by: currentStaff.staff_id,
-        updated_at: new Date().toISOString(),
-      });
+      targetDates.push(cursor);
     }
     cursor = addDaysISO(cursor, 1);
   }
 
   const supabase = await createClient();
+
+  // staffId=0 の場合は削除
+  if (!staffId) {
+    const { error } = await supabase
+      .from('CLEANING_DUTY_ASSIGNMENT')
+      .delete()
+      .in('duty_date', targetDates);
+
+    if (error) {
+      console.error('Error deleting cleaning duty assignments:', error);
+      return { success: false, error: error.message };
+    }
+
+    return { success: true };
+  }
+
+  // staffIdが指定されている場合はupsert
+  const rows = targetDates.map((dutyDate) => ({
+    duty_date: dutyDate,
+    staff_id: staffId,
+    updated_by: currentStaff.staff_id,
+    updated_at: new Date().toISOString(),
+  }));
 
   const { error } = await supabase
     .from('CLEANING_DUTY_ASSIGNMENT')

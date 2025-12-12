@@ -71,3 +71,27 @@ export function getToday(): Date {
   return now;
 }
 
+/**
+ * ランダムなパーソナルカラーを生成（明るめで見やすい色）
+ */
+export function generateRandomPersonalColor(): string {
+  // HSL色空間で彩度と明度を固定し、色相だけランダムにすることで見やすい色を生成
+  const hue = Math.floor(Math.random() * 360);
+  const saturation = 65 + Math.floor(Math.random() * 20); // 65-85%
+  const lightness = 75 + Math.floor(Math.random() * 10); // 75-85% (明るめ)
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+}
+
+/**
+ * スタッフIDから一貫したパーソナルカラーを生成（DBに色が未設定の場合のフォールバック）
+ * 同じIDからは常に同じ色が生成される
+ */
+export function getStaffColorById(staffId: number): string {
+  // Golden angle (約137.5度) を使って色相を均等に分散
+  const goldenAngle = 137.508;
+  const hue = (staffId * goldenAngle) % 360;
+  const saturation = 70;
+  const lightness = 80; // 明るめで見やすい
+  return `hsl(${Math.round(hue)}, ${saturation}%, ${lightness}%)`;
+}
+

@@ -6,11 +6,11 @@ import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
-import { User, Heart, Mail, Briefcase, Shield, Calendar, TrendingUp, TrendingDown, Edit2, Save, X, Lock, Trophy } from 'lucide-react';
+import { User, Heart, Mail, Briefcase, Shield, Calendar, TrendingUp, TrendingDown, Edit2, Save, X, Lock, Trophy, Palette, RefreshCw } from 'lucide-react';
 import { getCurrentStaff } from '@/app/actions/diary';
 import { getPointHistory, getMonthlyPoints } from '@/app/actions/points';
-import { updateProfile, updatePassword, updateStaffByAdmin, getJobTypesForProfile, getSystemRoles } from '@/app/actions/profile';
-import { formatDate, formatTime } from '@/lib/utils';
+import { updateProfile, updatePassword, updateStaffByAdmin, getJobTypesForProfile, getSystemRoles, updatePersonalColor } from '@/app/actions/profile';
+import { formatDate, formatTime, generateRandomPersonalColor } from '@/lib/utils';
 import type { PointLog } from '@/types/database.types';
 
 interface JobType {
@@ -30,6 +30,7 @@ interface StaffProfile {
   current_points: number;
   system_role_id: number;
   job_type_id: number;
+  personal_color?: string | null;
   job_type?: {
     job_name: string;
   };
@@ -52,6 +53,7 @@ export default function MyPage() {
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingPassword, setIsEditingPassword] = useState(false);
   const [isEditingAdmin, setIsEditingAdmin] = useState(false);
+  const [isEditingColor, setIsEditingColor] = useState(false);
 
   // 編集フォームの値
   const [editName, setEditName] = useState('');
@@ -60,6 +62,7 @@ export default function MyPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [editJobTypeId, setEditJobTypeId] = useState<number>(0);
   const [editSystemRoleId, setEditSystemRoleId] = useState<number>(0);
+  const [editPersonalColor, setEditPersonalColor] = useState<string>('');
 
   // エラー・メッセージ
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +80,7 @@ export default function MyPage() {
           setEditEmail(staff.email);
           setEditJobTypeId(staff.job_type_id);
           setEditSystemRoleId(staff.system_role_id);
+          setEditPersonalColor(staff.personal_color || '');
           
           const [history, monthly] = await Promise.all([
             getPointHistory(staff.staff_id),
@@ -180,18 +184,48 @@ export default function MyPage() {
     });
   };
 
+  const handleSavePersonalColor = () => {
+    if (!profile) return;
+    setError(null);
+    setSuccess(null);
+
+    startTransition(async () => {
+      const result = await updatePersonalColor(profile.staff_id, editPersonalColor);
+
+      if (result.success) {
+        setSuccess('パーソナルカラーを更新しました');
+        setIsEditingColor(false);
+        // プロフィールを再読み込み
+        const staff = await getCurrentStaff();
+        if (staff) {
+          setProfile(staff as StaffProfile);
+          setEditPersonalColor(staff.personal_color || '');
+        }
+      } else {
+        setError(result.error || '更新に失敗しました');
+      }
+    });
+  };
+
+  const handleGenerateRandomColor = () => {
+    const newColor = generateRandomPersonalColor();
+    setEditPersonalColor(newColor);
+  };
+
   const cancelEdit = () => {
     if (profile) {
       setEditName(profile.name);
       setEditEmail(profile.email);
       setEditJobTypeId(profile.job_type_id);
       setEditSystemRoleId(profile.system_role_id);
+      setEditPersonalColor(profile.personal_color || '');
     }
     setNewPassword('');
     setConfirmPassword('');
     setIsEditingProfile(false);
     setIsEditingPassword(false);
     setIsEditingAdmin(false);
+    setIsEditingColor(false);
     setError(null);
   };
 
@@ -378,6 +412,85 @@ export default function MyPage() {
               <p className="text-sm text-slate-500">
                 パスワードを変更するには「変更」ボタンをクリックしてください。
               </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* パーソナルカラー設定カード */}
+        <Card>
+          <CardHeader className="border-b border-slate-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                パーソナルカラー
+              </h3>
+              {!isEditingColor && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditingColor(true)}
+                >
+                  <Edit2 className="h-4 w-4 mr-1" />
+                  変更
+                </Button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="py-4">
+            {isEditingColor ? (
+              <div className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  掃除当番カレンダーなどで表示される、あなた専用の色を設定できます。
+                </p>
+                <div className="flex items-center gap-4">
+                  <div
+                    className="w-16 h-16 rounded-lg border-2 border-slate-300 shadow-inner"
+                    style={{ backgroundColor: editPersonalColor || '#e2e8f0' }}
+                  />
+                  <div className="flex-1 space-y-2">
+                    <Input
+                      type="text"
+                      value={editPersonalColor}
+                      onChange={(e) => setEditPersonalColor(e.target.value)}
+                      placeholder="例: hsl(210, 70%, 80%) or #87CEEB"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerateRandomColor}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-1" />
+                      ランダムに生成
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={cancelEdit} disabled={isPending}>
+                    <X className="h-4 w-4 mr-1" />
+                    キャンセル
+                  </Button>
+                  <Button onClick={handleSavePersonalColor} disabled={isPending}>
+                    <Save className="h-4 w-4 mr-1" />
+                    {isPending ? '保存中...' : '保存'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-4">
+                <div
+                  className="w-12 h-12 rounded-lg border-2 border-slate-200 shadow-sm"
+                  style={{ backgroundColor: profile.personal_color || '#e2e8f0' }}
+                />
+                <div>
+                  <p className="text-sm text-slate-600">
+                    {profile.personal_color ? '設定済み' : '未設定（グレーで表示されます）'}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    掃除当番カレンダーで、あなたの当番日がこの色で表示されます。
+                  </p>
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>

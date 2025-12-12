@@ -6,9 +6,6 @@ import { getMonthlyPoints } from '@/app/actions/points';
 import { toISODateString, getToday } from '@/lib/utils';
 import { DiaryListClient } from '@/components/diary/DiaryListClient';
 import { getCleaningDutyDiaryForStaff } from '@/app/actions/cleaningDuty';
-import Link from 'next/link';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Button } from '@/components/ui/Button';
 
 interface PageProps {
   searchParams: Promise<{ date?: string; filter?: 'urgent' | 'todo' }>;
@@ -75,25 +72,6 @@ export default async function HomePage({ searchParams }: PageProps) {
         <DateNavigator currentDate={currentDate} />
 
         <main className="container mx-auto px-4 py-6 pb-24">
-          {/* 管理者向け: 本日の掃除当番を見る */}
-          {isToday && currentStaff?.system_role_id === 1 && (
-            <Card className="mb-6">
-              <CardHeader className="border-b border-slate-200 py-3">
-                <CardTitle className="text-sm font-semibold text-slate-700">
-                  本日の掃除当番
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="py-4 flex items-center justify-between gap-4">
-                <p className="text-sm text-slate-600">
-                  本日の掃除当番（本人にだけ表示される記事）を管理者として確認できます。
-                </p>
-                <Link href={`/cleaning-duty/today?date=${dateString}`}>
-                  <Button size="sm">本日の掃除当番を見る</Button>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-
           <DiaryListClient
             diaries={mergedDiaries}
             currentUserId={currentStaff?.staff_id}

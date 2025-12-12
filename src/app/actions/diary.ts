@@ -508,6 +508,7 @@ export async function getCurrentStaff() {
       system_role_id,
       is_active,
       current_points,
+      personal_color,
       created_at,
       updated_at,
       job_type:JOB_TYPE(
@@ -538,6 +539,7 @@ export async function getCurrentStaff() {
     system_role_id: staff.system_role_id,
     is_active: staff.is_active,
     current_points: staff.current_points,
+    personal_color: staff.personal_color,
     created_at: staff.created_at,
     updated_at: staff.updated_at,
     job_type: Array.isArray(jobTypeData) ? jobTypeData[0] : jobTypeData,

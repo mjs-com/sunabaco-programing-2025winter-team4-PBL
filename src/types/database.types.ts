@@ -45,6 +45,7 @@ export interface Staff {
   system_role_id: number;
   is_active: boolean;
   current_points: number;
+  personal_color?: string | null; // パーソナルカラー（カレンダー表示用）
   created_at: string;
   updated_at: string;
 }
@@ -60,6 +61,7 @@ export interface StaffBasicInfo {
   staff_id: number;
   name: string;
   job_type_id: number;
+  personal_color?: string | null;
   job_type?: {
     job_type_id: number;
     job_name: string;
@@ -75,6 +77,7 @@ export interface CurrentStaffInfo {
   system_role_id: number;
   is_active: boolean;
   current_points: number;
+  personal_color?: string | null;
   created_at: string;
   updated_at: string;
   job_type?: JobType;

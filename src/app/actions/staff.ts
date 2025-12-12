@@ -16,6 +16,7 @@ export async function getActiveStaff(): Promise<StaffBasicInfo[]> {
       staff_id,
       name,
       job_type_id,
+      personal_color,
       job_type:JOB_TYPE(
         job_type_id,
         job_name
@@ -34,6 +35,7 @@ export async function getActiveStaff(): Promise<StaffBasicInfo[]> {
     staff_id: staff.staff_id,
     name: staff.name,
     job_type_id: staff.job_type_id,
+    personal_color: staff.personal_color,
     job_type: Array.isArray(staff.job_type) ? staff.job_type[0] : staff.job_type,
   }));
 }

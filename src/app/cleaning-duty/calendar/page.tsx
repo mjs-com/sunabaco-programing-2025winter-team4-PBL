@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useMemo, useState, useTransition } from 'react';
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Edit2, Repeat, X, Save, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Repeat, X, Save, Trash2 } from 'lucide-react';
 import { Header } from '@/components/layout/Header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Switch } from '@/components/ui/Switch';
-import { cn, getToday, toISODateString, formatDate } from '@/lib/utils';
+import { cn, getToday, toISODateString, formatDate, getStaffColorById } from '@/lib/utils';
 import { getCurrentStaff } from '@/app/actions/diary';
 import { getMonthlyPoints } from '@/app/actions/points';
 import { getActiveStaff } from '@/app/actions/staff';
@@ -62,6 +62,7 @@ function formatYearMonth(date: Date): string {
 export default function CleaningDutyCalendarPage() {
   const [isPending, startTransition] = useTransition();
 
+  const [isLoading, setIsLoading] = useState(true);
   const [currentStaff, setCurrentStaff] = useState<CurrentStaffInfo | null>(null);
   const [monthlyPoints, setMonthlyPoints] = useState(0);
   const [staffList, setStaffList] = useState<StaffBasicInfo[]>([]);
@@ -72,9 +73,8 @@ export default function CleaningDutyCalendarPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // 編集UI
+  // 編集UI（管理者は常に編集モード）
   const isAdmin = currentStaff?.system_role_id === 1;
-  const [isEditMode, setIsEditMode] = useState(false);
 
   // 繰り返し登録モーダル
   const [showRecurringModal, setShowRecurringModal] = useState(false);
@@ -114,6 +114,17 @@ export default function CleaningDutyCalendarPage() {
     return map;
   }, [staffList]);
 
+  // スタッフごとのパーソナルカラー（未設定はスタッフIDから自動生成）
+  const staffColorMap = useMemo(() => {
+    const map = new Map<number, string>();
+    staffList.forEach((s) => {
+      // DBに保存された色があればそれを使用、なければIDから自動生成
+      const color = s.personal_color || getStaffColorById(s.staff_id);
+      map.set(s.staff_id, color);
+    });
+    return map;
+  }, [staffList]);
+
   const calendarCells = useMemo(() => {
     const start = monthRange.start;
     const firstDow = start.getDay();
@@ -133,22 +144,27 @@ export default function CleaningDutyCalendarPage() {
   }, [monthRange]);
 
   async function loadBase() {
-    const staff = await getCurrentStaff();
-    if (!staff) {
-      setCurrentStaff(null);
-      return;
+    try {
+      const staff = await getCurrentStaff();
+      if (!staff) {
+        setCurrentStaff(null);
+        setIsLoading(false);
+        return;
+      }
+      setCurrentStaff(staff as unknown as CurrentStaffInfo);
+
+      const [points, staffs] = await Promise.all([
+        getMonthlyPoints(staff.staff_id),
+        getActiveStaff(),
+      ]);
+      setMonthlyPoints(points);
+      setStaffList(staffs);
+
+      // 初期値（繰り返し登録の担当者）
+      setRecStaffId(staffs[0]?.staff_id ?? 0);
+    } finally {
+      setIsLoading(false);
     }
-    setCurrentStaff(staff as unknown as CurrentStaffInfo);
-
-    const [points, staffs] = await Promise.all([
-      getMonthlyPoints(staff.staff_id),
-      getActiveStaff(),
-    ]);
-    setMonthlyPoints(points);
-    setStaffList(staffs);
-
-    // 初期値（繰り返し登録の担当者）
-    setRecStaffId(staffs[0]?.staff_id ?? 0);
   }
 
   async function loadAssignments() {
@@ -157,7 +173,10 @@ export default function CleaningDutyCalendarPage() {
   }
 
   useEffect(() => {
-    loadBase().catch((e) => console.error(e));
+    loadBase().catch((e) => {
+      console.error(e);
+      setIsLoading(false);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -174,6 +193,7 @@ export default function CleaningDutyCalendarPage() {
     setDayStaffId(assignmentMap.get(iso) ?? 0);
     setDayRepeatEnabled(false);
     setDayRepeatEndDate(toISODateString(addMonths(parseISODate(iso), 1)));
+    // 曜日は選択された日の曜日をデフォルトに
     setDayRepeatWeekDays([parseISODate(iso).getDay()]);
     setShowDayModal(true);
   };
@@ -259,6 +279,8 @@ export default function CleaningDutyCalendarPage() {
 
       setSuccess('繰り返し登録しました');
       setShowRecurringModal(false);
+      // 登録後は曜日選択をリセット（次回登録時に誤って上書きしないように）
+      setRecWeekDays([]);
       await loadAssignments();
     });
   };
@@ -330,6 +352,26 @@ export default function CleaningDutyCalendarPage() {
     });
   };
 
+  // スケルトンUI（ローディング中に表示）
+  const CalendarSkeleton = () => (
+    <div className="animate-pulse">
+      {/* 曜日ヘッダ */}
+      <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-600 mb-2">
+        {WEEKDAYS.map((w) => (
+          <div key={w.value} className={cn(w.value === 0 ? 'text-red-600' : w.value === 6 ? 'text-blue-600' : '')}>
+            {w.label}
+          </div>
+        ))}
+      </div>
+      {/* スケルトンセル */}
+      <div className="grid grid-cols-7 gap-2">
+        {Array.from({ length: 35 }).map((_, idx) => (
+          <div key={idx} className="h-20 rounded-lg bg-slate-200" />
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-slate-50">
       <Header currentPoints={monthlyPoints} systemRoleId={currentStaff?.system_role_id} />
@@ -342,26 +384,15 @@ export default function CleaningDutyCalendarPage() {
           </h1>
 
           {isAdmin && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowRecurringModal(true)}
-                disabled={isPending}
-              >
-                <Repeat className="h-4 w-4 mr-1" />
-                繰り返し登録
-              </Button>
-              <Button
-                variant={isEditMode ? 'secondary' : 'outline'}
-                size="sm"
-                onClick={() => setIsEditMode(!isEditMode)}
-                disabled={isPending}
-              >
-                <Edit2 className="h-4 w-4 mr-1" />
-                {isEditMode ? '編集モード中' : '編集'}
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowRecurringModal(true)}
+              disabled={isPending || isLoading}
+            >
+              <Repeat className="h-4 w-4 mr-1" />
+              繰り返し登録
+            </Button>
           )}
         </div>
 
@@ -382,7 +413,7 @@ export default function CleaningDutyCalendarPage() {
               <div>
                 <CardTitle className="text-lg">{formatYearMonth(monthCursor)}</CardTitle>
                 <p className="text-xs text-slate-500 mt-1">
-                  {isEditMode && isAdmin
+                  {isAdmin
                     ? '日付をクリックするとその日の当番を変更できます'
                     : '当番者には当日、トップページに「本日の掃除当番」日報が表示されます'}
                 </p>
@@ -411,72 +442,74 @@ export default function CleaningDutyCalendarPage() {
           </CardHeader>
 
           <CardContent className="py-4">
-            {/* 曜日ヘッダ */}
-            <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-600 mb-2">
-              {WEEKDAYS.map((w) => (
-                <div
-                  key={w.value}
-                  className={cn(w.value === 0 ? 'text-red-600' : w.value === 6 ? 'text-blue-600' : '')}
-                >
-                  {w.label}
+            {isLoading ? (
+              <CalendarSkeleton />
+            ) : (
+              <>
+                {/* 曜日ヘッダ */}
+                <div className="grid grid-cols-7 gap-2 text-center text-xs font-semibold text-slate-600 mb-2">
+                  {WEEKDAYS.map((w) => (
+                    <div
+                      key={w.value}
+                      className={cn(w.value === 0 ? 'text-red-600' : w.value === 6 ? 'text-blue-600' : '')}
+                    >
+                      {w.label}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {/* カレンダー本体 */}
-            <div className="grid grid-cols-7 gap-2">
-              {calendarCells.map((cell, idx) => {
-                if (!cell) {
-                  return <div key={idx} className="h-20 rounded-lg bg-transparent" />;
-                }
+                {/* カレンダー本体 */}
+                <div className="grid grid-cols-7 gap-2">
+                  {calendarCells.map((cell, idx) => {
+                    if (!cell) {
+                      return <div key={idx} className="h-20 rounded-lg bg-transparent" />;
+                    }
 
-                const staffId = assignmentMap.get(cell.iso);
-                const staffName = staffId ? staffNameMap.get(staffId) : undefined;
-                const isSunday = cell.date.getDay() === 0;
-                const isSaturday = cell.date.getDay() === 6;
-                const isToday = cell.iso === toISODateString(getToday());
+                    const staffId = assignmentMap.get(cell.iso);
+                    const staffName = staffId ? staffNameMap.get(staffId) : undefined;
+                    const staffColor = staffId ? staffColorMap.get(staffId) : undefined;
+                    const isSunday = cell.date.getDay() === 0;
+                    const isSaturday = cell.date.getDay() === 6;
+                    const isToday = cell.iso === toISODateString(getToday());
 
-                return (
-                  <button
-                    key={cell.iso}
-                    type="button"
-                    onClick={() => {
-                      if (isEditMode && isAdmin) openDayModal(cell.iso);
-                    }}
-                    className={cn(
-                      'h-20 rounded-lg border text-left p-2 transition-colors',
-                      'bg-white hover:bg-slate-50',
-                      isEditMode && isAdmin && 'cursor-pointer',
-                      !isEditMode && 'cursor-default',
-                      isToday && 'border-primary-500 ring-2 ring-primary-100',
-                      isSunday && 'border-red-100',
-                      isSaturday && 'border-blue-100'
-                    )}
-                    disabled={!isEditMode || !isAdmin || isPending}
-                    title={isEditMode && isAdmin ? 'クリックして当番を変更' : undefined}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span
+                    return (
+                      <button
+                        key={cell.iso}
+                        type="button"
+                        onClick={() => {
+                          if (isAdmin) openDayModal(cell.iso);
+                        }}
                         className={cn(
-                          'text-sm font-semibold',
-                          isSunday ? 'text-red-600' : isSaturday ? 'text-blue-600' : 'text-slate-800'
+                          'h-20 rounded-lg border text-left p-2 transition-all',
+                          isAdmin && 'cursor-pointer hover:opacity-80 hover:shadow-md',
+                          !isAdmin && 'cursor-default',
+                          isToday && 'border-primary-500 ring-2 ring-primary-100',
+                          !staffId && isSunday && 'border-red-100',
+                          !staffId && isSaturday && 'border-blue-100'
                         )}
+                        style={{
+                          backgroundColor: staffColor || (staffId ? '#e2e8f0' : '#ffffff'),
+                        }}
+                        disabled={!isAdmin || isPending}
+                        title={isAdmin ? 'クリックして当番を変更' : undefined}
                       >
-                        {cell.date.getDate()}
-                      </span>
-                      {staffName && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
-                          {staffName}
+                        <span
+                          className={cn(
+                            'text-sm font-semibold',
+                            staffColor ? 'text-slate-800' : (isSunday ? 'text-red-600' : isSaturday ? 'text-blue-600' : 'text-slate-800')
+                          )}
+                        >
+                          {cell.date.getDate()}
                         </span>
-                      )}
-                    </div>
-                    <div className="mt-2 text-xs text-slate-500 line-clamp-2">
-                      {staffName ? `当番: ${staffName}` : '当番: 未設定'}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+                        <div className="mt-2 text-xs text-slate-700 line-clamp-2 font-medium">
+                          {staffName ? `当番: ${staffName}` : ''}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
@@ -501,6 +534,7 @@ export default function CleaningDutyCalendarPage() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">担当者</label>
                   <Select value={recStaffId} onChange={(e) => setRecStaffId(Number(e.target.value))}>
+                    <option value={0}>担当者なし（解除）</option>
                     {staffList.map((s) => (
                       <option key={s.staff_id} value={s.staff_id}>
                         {s.name}
