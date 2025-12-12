@@ -10,7 +10,7 @@ import { User, Heart, Mail, Briefcase, Shield, Calendar, TrendingUp, TrendingDow
 import { getCurrentStaff } from '@/app/actions/diary';
 import { getPointHistory, getMonthlyPoints } from '@/app/actions/points';
 import { updateProfile, updatePassword, updateStaffByAdmin, getJobTypesForProfile, getSystemRoles, updatePersonalColor } from '@/app/actions/profile';
-import { formatDate, formatTime, generateRandomPersonalColor } from '@/lib/utils';
+import { formatDate, formatTime, generateRandomPersonalColor, colorToHex } from '@/lib/utils';
 import type { PointLog } from '@/types/database.types';
 
 interface JobType {
@@ -442,28 +442,43 @@ export default function MyPage() {
                 <p className="text-sm text-slate-600">
                   掃除当番カレンダーなどで表示される、あなた専用の色を設定できます。
                 </p>
-                <div className="flex items-center gap-4">
-                  <div
-                    className="w-16 h-16 rounded-lg border-2 border-slate-300 shadow-inner"
-                    style={{ backgroundColor: editPersonalColor || '#e2e8f0' }}
-                  />
-                  <div className="flex-1 space-y-2">
-                    <Input
-                      type="text"
-                      value={editPersonalColor}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">パーソナルカラー</label>
+                  <div className="flex items-center gap-4">
+                    <input
+                      type="color"
+                      value={colorToHex(editPersonalColor)}
                       onChange={(e) => setEditPersonalColor(e.target.value)}
-                      placeholder="例: hsl(210, 70%, 80%) or #87CEEB"
+                      className="w-20 h-20 rounded-lg border-2 border-slate-300 cursor-pointer overflow-hidden"
+                      style={{
+                        backgroundColor: colorToHex(editPersonalColor),
+                        appearance: 'none',
+                        WebkitAppearance: 'none',
+                        MozAppearance: 'none',
+                        padding: 0,
+                      }}
                     />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={handleGenerateRandomColor}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-1" />
-                      ランダムに生成
-                    </Button>
+                    <div className="flex-1 space-y-2">
+                      <Input
+                        type="text"
+                        value={editPersonalColor}
+                        onChange={(e) => setEditPersonalColor(e.target.value)}
+                        placeholder="例: hsl(210, 70%, 80%) or #87CEEB"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleGenerateRandomColor}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                        ランダムに生成
+                      </Button>
+                    </div>
                   </div>
+                  <p className="text-xs text-slate-500">
+                    カラーピッカーで選択するか、HSL形式またはhex形式で直接入力できます
+                  </p>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={cancelEdit} disabled={isPending}>
