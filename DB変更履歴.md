@@ -54,3 +54,60 @@ ALTER TABLE "JOB_TYPE" ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true
 **影響範囲**:
 - `JOB_TYPE`テーブル
 - 職種一覧の取得処理（is_active=trueのみ取得するように変更が必要）
+
+## 2025-12-12 - 掃除当番機能追加
+
+**変更日時**: 2025-12-12  
+**変更内容**: 掃除当番機能のため、DIARYテーブルにカラムを追加し、CLEANING_DUTY_ASSIGNMENTテーブルを新規作成
+
+**SQL文**:
+```sql
+-- 日報の種別（通常/掃除当番など）
+ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS diary_type TEXT NOT NULL DEFAULT 'NORMAL';
+
+-- 日報の宛先（NULL=全体公開、値あり=指定スタッフのみ表示）
+ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS target_staff_id INT REFERENCES "STAFF"(staff_id);
+
+-- 掃除当番の割当テーブル（1日=1人）
+CREATE TABLE IF NOT EXISTS "CLEANING_DUTY_ASSIGNMENT" (
+  duty_date DATE PRIMARY KEY,
+  staff_id INT NOT NULL REFERENCES "STAFF"(staff_id),
+  created_by INT REFERENCES "STAFF"(staff_id),
+  updated_by INT REFERENCES "STAFF"(staff_id),
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS "cleaning_duty_assignment_staff_id_idx"
+  ON "CLEANING_DUTY_ASSIGNMENT"(staff_id);
+
+-- 掃除当番用カテゴリ（なければ追加）
+INSERT INTO "CATEGORY" (category_name, is_active)
+SELECT '掃除当番', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM "CATEGORY" WHERE category_name = '掃除当番'
+);
+
+-- 掃除当番日報は「日付×種別」で一意（返信は除外）
+CREATE UNIQUE INDEX IF NOT EXISTS "diary_cleaning_duty_unique"
+  ON "DIARY"(target_date, diary_type)
+  WHERE diary_type = 'CLEANING_DUTY' AND parent_id IS NULL;
+```
+
+**変更理由**:
+- `diary_type`: 日報の種別を区別（通常日報と掃除当番日報を分離）
+- `target_staff_id`: 特定のスタッフのみに表示する日報を実現（掃除当番は当番者のみに表示）
+- `CLEANING_DUTY_ASSIGNMENT`: 掃除当番の割当を管理（1日につき1人の当番者を記録）
+
+**影響範囲**:
+- `DIARY`テーブル（新カラム追加）
+- `CLEANING_DUTY_ASSIGNMENT`テーブル（新規作成）
+- `CATEGORY`テーブル（「掃除当番」カテゴリの追加）
+- 日報一覧表示（`target_staff_id`によるフィルタリング）
+- 掃除当番カレンダー機能
+- 掃除当番日報の自動生成機能
+
+**注意事項**:
+- `diary_type`のデフォルト値は`'NORMAL'`（既存レコードは自動的に`'NORMAL'`になる）
+- `target_staff_id`がNULLの場合は全体公開（従来通りの動作）
+- 掃除当番機能を使用しない場合は、これらのカラム/テーブルは未適用でもアプリは動作します（コード側でエラーハンドリング済み）

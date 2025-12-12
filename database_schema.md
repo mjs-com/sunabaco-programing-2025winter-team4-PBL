@@ -17,6 +17,7 @@ erDiagram
     JOB_TYPE {
         int job_type_id PK
         string job_name
+        boolean is_active "論理削除用フラグ"
     }
 
     SYSTEM_ROLE {

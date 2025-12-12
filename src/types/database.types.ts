@@ -55,6 +55,17 @@ export interface StaffWithRelations extends Staff {
   system_role?: SystemRole;
 }
 
+// スタッフ一覧用の軽量型（メンション・選択リスト用）
+export interface StaffBasicInfo {
+  staff_id: number;
+  name: string;
+  job_type_id: number;
+  job_type?: {
+    job_type_id: number;
+    job_name: string;
+  };
+}
+
 // ==========================================
 // 日報データ型
 // ==========================================

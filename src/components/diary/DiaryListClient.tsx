@@ -5,7 +5,7 @@ import { DiaryList } from './DiaryList';
 import { DiaryDetailModal } from './DiaryDetailModal';
 import { updateUserDiaryStatus, getJobTypes } from '@/app/actions/diary';
 import { getActiveStaff } from '@/app/actions/staff';
-import type { DiaryWithRelations, UserStatus, Category, StaffWithRelations, JobType } from '@/types/database.types';
+import type { DiaryWithRelations, UserStatus, Category, StaffBasicInfo, JobType } from '@/types/database.types';
 import { useRouter } from 'next/navigation';
 
 interface DiaryListClientProps {
@@ -21,7 +21,7 @@ export function DiaryListClient({ diaries, currentUserId, currentUserName, isAdm
   const [localDiaries, setLocalDiaries] = useState<DiaryWithRelations[]>(diaries);
   const [pendingStatusByDiaryId, setPendingStatusByDiaryId] = useState<Record<number, boolean>>({});
   const [selectedDiary, setSelectedDiary] = useState<DiaryWithRelations | null>(null);
-  const [staffList, setStaffList] = useState<StaffWithRelations[]>([]);
+  const [staffList, setStaffList] = useState<StaffBasicInfo[]>([]);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
 
   useEffect(() => {

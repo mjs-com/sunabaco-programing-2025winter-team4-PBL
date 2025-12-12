@@ -19,7 +19,8 @@ SET session_replication_role = 'origin';
 -- 職種マスタ (医師, 看護師, 事務など)
 CREATE TABLE "JOB_TYPE" (
     job_type_id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    job_name TEXT NOT NULL UNIQUE
+    job_name TEXT NOT NULL UNIQUE,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE -- 無効化フラグ
 );
 
 -- システム権限マスタ (管理者, 一般ユーザーなど)
@@ -76,6 +77,7 @@ CREATE TABLE "DIARY" (
     staff_id INT NOT NULL REFERENCES "STAFF"(staff_id), -- 作成者
     updated_by INT REFERENCES "STAFF"(staff_id), -- 最終編集者（編集履歴用）
     solved_by INT REFERENCES "STAFF"(staff_id), -- 解決者
+    target_staff_id INT REFERENCES "STAFF"(staff_id), -- 宛先（NULL=全体公開、値あり=指定スタッフのみ表示）
     
     -- コンテンツ
     title TEXT NOT NULL,
@@ -84,6 +86,7 @@ CREATE TABLE "DIARY" (
     -- 状態と制御
     target_date DATE NOT NULL, -- 何日の日報か
     deadline DATE, -- 期限日（任意、NULLの場合は期限なし）
+    diary_type TEXT NOT NULL DEFAULT 'NORMAL', -- 日報種別（NORMAL=通常、CLEANING_DUTY=掃除当番）
     is_urgent BOOLEAN NOT NULL DEFAULT FALSE, -- 至急フラグ
     bounty_points INT, -- 特別報酬ポイント (NULLの場合はデフォルト適用)
     is_hidden BOOLEAN NOT NULL DEFAULT FALSE, -- 表示OFF (アーカイブ)
@@ -136,16 +139,48 @@ CREATE TABLE "POINT_LOG" (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- =============================================
+-- 掃除当番管理 (Cleaning Duty)
+-- =============================================
+
+-- 掃除当番の割当（1日=1人）
+CREATE TABLE "CLEANING_DUTY_ASSIGNMENT" (
+    duty_date DATE PRIMARY KEY,
+    staff_id INT NOT NULL REFERENCES "STAFF"(staff_id), -- 当番者
+    created_by INT REFERENCES "STAFF"(staff_id),
+    updated_by INT REFERENCES "STAFF"(staff_id),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX "cleaning_duty_assignment_staff_id_idx"
+    ON "CLEANING_DUTY_ASSIGNMENT"(staff_id);
+
+-- 掃除当番日報は「日付×種別」で一意（返信は除外）
+CREATE UNIQUE INDEX "diary_cleaning_duty_unique"
+    ON "DIARY"(target_date, diary_type)
+    WHERE diary_type = 'CLEANING_DUTY' AND parent_id IS NULL;
+
 
 -- =============================================
 -- 6. 初期データ投入の例
 -- =============================================
 
 -- マスタデータ
-INSERT INTO "JOB_TYPE" (job_name) VALUES ('医師'), ('看護師'), ('医療事務');
+INSERT INTO "JOB_TYPE" (job_name, is_active) VALUES 
+    ('医師', true), 
+    ('看護師', true), 
+    ('医療事務', true);
 INSERT INTO "SYSTEM_ROLE" (role_name) VALUES ('管理者'), ('一般ユーザー');
-INSERT INTO "CATEGORY" (category_name) VALUES ('診察'), ('看護'), ('事務'), ('その他');
-INSERT INTO "TAG" (tag_name, css_class) VALUES ('備品関連', 'tag-blue'), ('教育', 'tag-green');
+INSERT INTO "CATEGORY" (category_name, is_active) VALUES 
+    ('診察', true), 
+    ('看護', true), 
+    ('事務', true), 
+    ('その他', true),
+    ('掃除当番', true); -- 掃除当番用カテゴリ
+INSERT INTO "TAG" (tag_name, css_class, is_active) VALUES 
+    ('備品関連', 'tag-blue', true), 
+    ('教育', 'tag-green', true);
 
 -- 初期STAFF（ログインテスト用）
 -- ※Supabase Authでユーザーを作成し、そのemailと一致させる必要があります
@@ -173,17 +208,42 @@ VALUES
 -- ※新規でテーブルを作成する場合は不要です
 -- ※既存のテーブルにカラムを追加する場合のみ使用
 
--- 期限カラム
+-- JOB_TYPEテーブルにis_activeカラムを追加
+-- ALTER TABLE "JOB_TYPE" ADD COLUMN IF NOT EXISTS "is_active" boolean DEFAULT true NOT NULL;
+
+-- DIARYテーブルに期限・解決者カラムを追加
 -- ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS deadline DATE;
-
--- 解決者カラム
 -- ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS solved_by INT REFERENCES "STAFF"(staff_id);
-
--- 解決日時カラム
 -- ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS solved_at TIMESTAMP WITH TIME ZONE;
-
--- 編集者カラム
 -- ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS updated_by INT REFERENCES "STAFF"(staff_id);
+
+-- DIARYテーブルに掃除当番機能用カラムを追加
+-- ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS diary_type TEXT NOT NULL DEFAULT 'NORMAL';
+-- ALTER TABLE "DIARY" ADD COLUMN IF NOT EXISTS target_staff_id INT REFERENCES "STAFF"(staff_id);
+
+-- 掃除当番割当テーブルを作成
+-- CREATE TABLE IF NOT EXISTS "CLEANING_DUTY_ASSIGNMENT" (
+--   duty_date DATE PRIMARY KEY,
+--   staff_id INT NOT NULL REFERENCES "STAFF"(staff_id),
+--   created_by INT REFERENCES "STAFF"(staff_id),
+--   updated_by INT REFERENCES "STAFF"(staff_id),
+--   created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+--   updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+-- );
+-- CREATE INDEX IF NOT EXISTS "cleaning_duty_assignment_staff_id_idx"
+--   ON "CLEANING_DUTY_ASSIGNMENT"(staff_id);
+
+-- 掃除当番用カテゴリを追加
+-- INSERT INTO "CATEGORY" (category_name, is_active)
+-- SELECT '掃除当番', true
+-- WHERE NOT EXISTS (
+--   SELECT 1 FROM "CATEGORY" WHERE category_name = '掃除当番'
+-- );
+
+-- 掃除当番日報の一意制約
+-- CREATE UNIQUE INDEX IF NOT EXISTS "diary_cleaning_duty_unique"
+--   ON "DIARY"(target_date, diary_type)
+--   WHERE diary_type = 'CLEANING_DUTY' AND parent_id IS NULL;
 
 
 -- =============================================

@@ -13,14 +13,14 @@ import type { DiaryWithRelations } from '@/types/database.types';
 import { updateDiary, deleteDiary, getJobTypes } from '@/app/actions/diary';
 import { getActiveStaff } from '@/app/actions/staff';
 import { MentionInput } from './MentionInput';
-import type { Category, StaffWithRelations, JobType } from '@/types/database.types';
+import type { Category, StaffBasicInfo, JobType } from '@/types/database.types';
 
 interface DiaryDetailModalProps {
   diary: DiaryWithRelations;
   currentUserId?: number;
   isAdmin?: boolean;
   categories: Category[];
-  staffList?: StaffWithRelations[];
+  staffList?: StaffBasicInfo[];
   jobTypes?: JobType[];
   onClose: () => void;
   onUpdate?: () => void;
@@ -40,7 +40,7 @@ export function DiaryDetailModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [loadedStaffList, setLoadedStaffList] = useState<StaffWithRelations[]>(staffList);
+  const [loadedStaffList, setLoadedStaffList] = useState<StaffBasicInfo[]>(staffList);
   const [loadedJobTypes, setLoadedJobTypes] = useState<JobType[]>(jobTypes);
 
   const isOwner = diary.staff_id === currentUserId;

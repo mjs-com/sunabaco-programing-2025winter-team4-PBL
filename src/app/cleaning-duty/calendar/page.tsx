@@ -19,7 +19,7 @@ import {
   upsertCleaningDutyAssignments,
   type CleaningDutyAssignment,
 } from '@/app/actions/cleaningDuty';
-import type { StaffWithRelations } from '@/types/database.types';
+import type { StaffWithRelations, StaffBasicInfo } from '@/types/database.types';
 
 const WEEKDAYS = [
   { value: 0, label: '日' },
@@ -64,7 +64,7 @@ export default function CleaningDutyCalendarPage() {
 
   const [currentStaff, setCurrentStaff] = useState<StaffWithRelations | null>(null);
   const [monthlyPoints, setMonthlyPoints] = useState(0);
-  const [staffList, setStaffList] = useState<StaffWithRelations[]>([]);
+  const [staffList, setStaffList] = useState<StaffBasicInfo[]>([]);
 
   const [monthCursor, setMonthCursor] = useState<Date>(getMonthStart(getToday()));
   const [assignments, setAssignments] = useState<CleaningDutyAssignment[]>([]);

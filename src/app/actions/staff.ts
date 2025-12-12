@@ -1,12 +1,13 @@
 'use server';
 
 import { createClient } from '@/lib/supabase/server';
-import type { StaffWithRelations } from '@/types/database.types';
+import type { StaffBasicInfo } from '@/types/database.types';
 
 /**
  * アクティブなスタッフ一覧を取得（メンション用）
+ * パフォーマンス最適化のため必要最小限のカラムのみ取得
  */
-export async function getActiveStaff(): Promise<StaffWithRelations[]> {
+export async function getActiveStaff(): Promise<StaffBasicInfo[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
@@ -28,6 +29,12 @@ export async function getActiveStaff(): Promise<StaffWithRelations[]> {
     return [];
   }
 
-  return data as StaffWithRelations[];
+  // Supabaseは配列でjob_typeを返すため、最初の要素を取得
+  return (data || []).map(staff => ({
+    staff_id: staff.staff_id,
+    name: staff.name,
+    job_type_id: staff.job_type_id,
+    job_type: Array.isArray(staff.job_type) ? staff.job_type[0] : staff.job_type,
+  }));
 }
 

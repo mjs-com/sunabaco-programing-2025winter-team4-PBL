@@ -3,8 +3,7 @@
 import { useState, useRef, useEffect, useImperativeHandle, forwardRef } from 'react';
 import { AtSign } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import type { StaffWithRelations } from '@/types/database.types';
-import type { JobType } from '@/types/database.types';
+import type { StaffBasicInfo, JobType } from '@/types/database.types';
 
 export interface MentionInputHandle {
   insertAt: (position?: number) => void;
@@ -13,7 +12,7 @@ export interface MentionInputHandle {
 interface MentionInputProps {
   value: string;
   onChange: (value: string) => void;
-  staffList: StaffWithRelations[];
+  staffList: StaffBasicInfo[];
   jobTypes: JobType[];
   placeholder?: string;
   rows?: number;

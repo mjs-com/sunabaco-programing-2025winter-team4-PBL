@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/Textarea';
 import { Switch } from '@/components/ui/Switch';
 import { CategoryBadge } from './CategoryBadge';
 import { cn, formatTime, formatDate } from '@/lib/utils';
-import type { DiaryWithRelations, UserStatus, StaffWithRelations, JobType } from '@/types/database.types';
+import type { DiaryWithRelations, UserStatus, StaffBasicInfo, JobType } from '@/types/database.types';
 import { createDiary, updateDiary, deleteDiary } from '@/app/actions/diary';
 
 interface DiaryCardProps {
@@ -16,7 +16,7 @@ interface DiaryCardProps {
   currentUserId?: number;
   currentUserName?: string;
   isAdmin?: boolean;
-  allStaff?: StaffWithRelations[];
+  allStaff?: StaffBasicInfo[];
   jobTypes?: JobType[];
   onStatusChange?: (diaryId: number, status: UserStatus) => void;
   onClick?: () => void;
@@ -43,7 +43,7 @@ export function getJobTypeColor(jobName?: string): string {
 // メンションされているスタッフIDを取得
 function getMentionedStaffIds(
   content: string,
-  allStaff: StaffWithRelations[],
+  allStaff: StaffBasicInfo[],
   jobTypes: JobType[]
 ): number[] {
   const mentionedIds: Set<number> = new Set();

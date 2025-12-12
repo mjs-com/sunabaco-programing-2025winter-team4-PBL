@@ -1,7 +1,7 @@
 'use client';
 
 import { DiaryCard } from './DiaryCard';
-import type { DiaryWithRelations, UserStatus, StaffWithRelations, JobType } from '@/types/database.types';
+import type { DiaryWithRelations, UserStatus, StaffBasicInfo, JobType } from '@/types/database.types';
 import { FileText, CheckCheck } from 'lucide-react';
 
 interface DiaryListProps {
@@ -9,7 +9,7 @@ interface DiaryListProps {
   currentUserId?: number;
   currentUserName?: string;
   isAdmin?: boolean;
-  allStaff?: StaffWithRelations[];
+  allStaff?: StaffBasicInfo[];
   jobTypes?: JobType[];
   onStatusChange?: (diaryId: number, status: UserStatus) => void;
   onDiaryClick?: (diary: DiaryWithRelations) => void;
