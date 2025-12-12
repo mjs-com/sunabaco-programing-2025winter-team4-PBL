@@ -140,11 +140,13 @@ export function DiaryCard({
     if (!currentUserId || !editingReplyContent.trim()) return;
 
     startTransition(async () => {
-      const result = await updateDiary({
-        diary_id: replyId,
-        content: editingReplyContent,
-        staff_id: currentUserId,
-      });
+      const result = await updateDiary(
+        replyId,
+        {
+          content: editingReplyContent,
+          staff_id: currentUserId,
+        }
+      );
 
       if (result.success) {
         setEditingReplyId(null);
