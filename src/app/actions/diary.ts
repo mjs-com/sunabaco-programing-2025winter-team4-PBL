@@ -522,7 +522,27 @@ export async function getCurrentStaff() {
     .eq('email', user.email)
     .single();
 
-  return staff;
+  if (!staff) {
+    return null;
+  }
+
+  // Supabaseのリレーションは配列で返されるため、オブジェクトに変換
+  const jobTypeData = staff.job_type as unknown;
+  const systemRoleData = staff.system_role as unknown;
+
+  return {
+    staff_id: staff.staff_id,
+    name: staff.name,
+    email: staff.email,
+    job_type_id: staff.job_type_id,
+    system_role_id: staff.system_role_id,
+    is_active: staff.is_active,
+    current_points: staff.current_points,
+    created_at: staff.created_at,
+    updated_at: staff.updated_at,
+    job_type: Array.isArray(jobTypeData) ? jobTypeData[0] : jobTypeData,
+    system_role: Array.isArray(systemRoleData) ? systemRoleData[0] : systemRoleData,
+  };
 }
 
 /**

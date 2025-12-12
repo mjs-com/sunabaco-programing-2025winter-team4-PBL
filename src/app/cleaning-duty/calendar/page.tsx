@@ -138,7 +138,7 @@ export default function CleaningDutyCalendarPage() {
       setCurrentStaff(null);
       return;
     }
-    setCurrentStaff(staff as CurrentStaffInfo);
+    setCurrentStaff(staff as unknown as CurrentStaffInfo);
 
     const [points, staffs] = await Promise.all([
       getMonthlyPoints(staff.staff_id),

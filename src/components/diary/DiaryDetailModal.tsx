@@ -205,6 +205,9 @@ export function DiaryDetailModal({
                   rows={8}
                   className="flex min-h-[200px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-transparent resize-none"
                 />
+                <p className="text-base text-slate-600">
+                  💡 音声入力するには、キーボードのマイクをタップ
+                </p>
               </div>
 
               <div className="flex items-center justify-between rounded-lg border border-slate-200 p-4">

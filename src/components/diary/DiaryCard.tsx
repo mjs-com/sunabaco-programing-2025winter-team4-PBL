@@ -460,6 +460,9 @@ export function DiaryCard({
                 autoFocus
                 required
               />
+              <p className="text-base text-slate-600">
+                💡 音声入力するには、キーボードのマイクをタップ
+              </p>
               
               {/* 至急フラグ */}
               <div className="flex items-center gap-2">
