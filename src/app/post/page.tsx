@@ -15,7 +15,7 @@ import { getActiveStaff } from '@/app/actions/staff';
 import { MentionInput, type MentionInputHandle } from '@/components/diary/MentionInput';
 import { MentionButton } from '@/components/diary/MentionButton';
 import { toISODateString, getToday } from '@/lib/utils';
-import type { Category, StaffBasicInfo, StaffWithRelations, JobType } from '@/types/database.types';
+import type { Category, StaffBasicInfo, CurrentStaffInfo, JobType } from '@/types/database.types';
 
 function SubmitButton() {
   const { pending } = useFormStatus();
@@ -39,7 +39,7 @@ export default function PostPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
   const [staffList, setStaffList] = useState<StaffBasicInfo[]>([]);
-  const [currentStaff, setCurrentStaff] = useState<StaffWithRelations | null>(null);
+  const [currentStaff, setCurrentStaff] = useState<CurrentStaffInfo | null>(null);
   const [content, setContent] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);

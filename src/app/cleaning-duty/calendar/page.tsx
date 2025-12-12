@@ -19,7 +19,7 @@ import {
   upsertCleaningDutyAssignments,
   type CleaningDutyAssignment,
 } from '@/app/actions/cleaningDuty';
-import type { StaffWithRelations, StaffBasicInfo } from '@/types/database.types';
+import type { CurrentStaffInfo, StaffBasicInfo } from '@/types/database.types';
 
 const WEEKDAYS = [
   { value: 0, label: '日' },
@@ -62,7 +62,7 @@ function formatYearMonth(date: Date): string {
 export default function CleaningDutyCalendarPage() {
   const [isPending, startTransition] = useTransition();
 
-  const [currentStaff, setCurrentStaff] = useState<StaffWithRelations | null>(null);
+  const [currentStaff, setCurrentStaff] = useState<CurrentStaffInfo | null>(null);
   const [monthlyPoints, setMonthlyPoints] = useState(0);
   const [staffList, setStaffList] = useState<StaffBasicInfo[]>([]);
 
@@ -138,7 +138,7 @@ export default function CleaningDutyCalendarPage() {
       setCurrentStaff(null);
       return;
     }
-    setCurrentStaff(staff as StaffWithRelations);
+    setCurrentStaff(staff as CurrentStaffInfo);
 
     const [points, staffs] = await Promise.all([
       getMonthlyPoints(staff.staff_id),

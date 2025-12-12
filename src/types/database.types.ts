@@ -66,6 +66,21 @@ export interface StaffBasicInfo {
   };
 }
 
+// 現在のログインユーザー情報用の型（パスワードハッシュなどを含まない）
+export interface CurrentStaffInfo {
+  staff_id: number;
+  name: string;
+  email: string;
+  job_type_id: number;
+  system_role_id: number;
+  is_active: boolean;
+  current_points: number;
+  created_at: string;
+  updated_at: string;
+  job_type?: JobType;
+  system_role?: SystemRole;
+}
+
 // ==========================================
 // 日報データ型
 // ==========================================
