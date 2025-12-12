@@ -11,15 +11,7 @@ import { getCurrentStaff } from '@/app/actions/diary';
 import { getPointHistory, getMonthlyPoints } from '@/app/actions/points';
 import { updateProfile, updatePassword, updateStaffByAdmin, getJobTypesForProfile, getSystemRoles } from '@/app/actions/profile';
 import { formatDate, formatTime } from '@/lib/utils';
-
-interface PointLog {
-  log_id: number;
-  staff_id: number;
-  amount: number;
-  reason: string;
-  created_at: string;
-  diary_id?: number;
-}
+import type { PointLog } from '@/types/database.types';
 
 interface JobType {
   job_type_id: number;
@@ -523,7 +515,7 @@ export default function MyPage() {
               <div className="space-y-3">
                 {pointHistory.slice(0, 10).map((log, index) => (
                   <div 
-                    key={log.log_id || index} 
+                    key={log.point_log_id || index} 
                     className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
                   >
                     <div className="flex items-center gap-3">
