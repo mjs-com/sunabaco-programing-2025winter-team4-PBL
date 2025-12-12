@@ -1,3 +1,5 @@
+import Link from 'next/link';
+import { ArrowLeft } from 'lucide-react';
 import { MasterEditList, MasterItem } from '@/components/settings/MasterEditList';
 import { 
   getCategories, 
@@ -32,7 +34,15 @@ export default async function CategoriesPage() {
   return (
     <div className="container mx-auto py-8 px-4 max-w-5xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800">カテゴリー設定</h1>
+        <div className="flex items-center gap-2 mb-4">
+          <Link
+            href="/"
+            className="flex items-center text-slate-600 hover:text-slate-800 -ml-2 p-2 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+          <h1 className="text-2xl font-bold text-slate-800">カテゴリー設定</h1>
+        </div>
         <p className="text-slate-500 mt-2">
           日報の分野やスタッフの職種カテゴリーを管理します。
           無効にすると新規作成時の選択肢には表示されなくなりますが、過去のデータは保持されます。

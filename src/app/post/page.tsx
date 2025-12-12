@@ -211,7 +211,7 @@ export default function PostPage() {
       <main className="container mx-auto px-4 py-6">
         <Card>
           <form action={handleSubmit}>
-            <CardContent className="space-y-4 pt-6">
+            <CardContent className="space-y-4 p-6 pt-6">
               {error && (
                 <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
                   {error}
@@ -238,13 +238,16 @@ export default function PostPage() {
                 <label htmlFor="target_date" className="text-sm font-medium text-slate-700">
                   日付 <span className="text-red-500">*</span>
                 </label>
-                <Input
-                  id="target_date"
-                  name="target_date"
-                  type="date"
-                  defaultValue={toISODateString(getToday())}
-                  required
-                />
+                <div className="w-full overflow-hidden">
+                  <Input
+                    id="target_date"
+                    name="target_date"
+                    type="date"
+                    defaultValue={toISODateString(getToday())}
+                    required
+                    className="w-full max-w-full box-border"
+                  />
+                </div>
               </div>
 
               {/* 期限 */}
@@ -263,14 +266,17 @@ export default function PostPage() {
                   </label>
                 </div>
                 {hasDeadline && (
-                  <Input
-                    id="deadline"
-                    name="deadline"
-                    type="date"
-                    value={deadline}
-                    onChange={(e) => setDeadline(e.target.value)}
-                    min={toISODateString(getToday())}
-                  />
+                  <div className="w-full overflow-hidden">
+                    <Input
+                      id="deadline"
+                      name="deadline"
+                      type="date"
+                      value={deadline}
+                      onChange={(e) => setDeadline(e.target.value)}
+                      min={toISODateString(getToday())}
+                      className="w-full max-w-full box-border"
+                    />
+                  </div>
                 )}
               </div>
 
@@ -388,12 +394,15 @@ export default function PostPage() {
                     {/* 終了日 */}
                     <div className="space-y-2">
                       <label className="text-sm font-medium text-slate-700">終了日</label>
-                      <Input
-                        type="date"
-                        value={recurrenceEndDate}
-                        onChange={(e) => setRecurrenceEndDate(e.target.value)}
-                        min={toISODateString(getToday())}
-                      />
+                      <div className="w-full overflow-hidden">
+                        <Input
+                          type="date"
+                          value={recurrenceEndDate}
+                          onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                          min={toISODateString(getToday())}
+                          className="w-full max-w-full box-border"
+                        />
+                      </div>
                       <div className="flex flex-wrap gap-2">
                         <Button
                           type="button"

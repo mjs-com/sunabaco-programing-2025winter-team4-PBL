@@ -377,7 +377,7 @@ export default function CleaningDutyCalendarPage() {
       <Header currentPoints={monthlyPoints} systemRoleId={currentStaff?.system_role_id} />
 
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <CalendarIcon className="h-7 w-7 text-primary-500" />
             掃除当番カレンダー
@@ -389,6 +389,7 @@ export default function CleaningDutyCalendarPage() {
               size="sm"
               onClick={() => setShowRecurringModal(true)}
               disabled={isPending || isLoading}
+              className="self-end sm:self-auto"
             >
               <Repeat className="h-4 w-4 mr-1" />
               繰り返し登録
@@ -502,7 +503,7 @@ export default function CleaningDutyCalendarPage() {
                           {cell.date.getDate()}
                         </span>
                         <div className="mt-2 text-xs text-slate-700 line-clamp-2 font-medium">
-                          {staffName ? `当番: ${staffName}` : ''}
+                          {staffName || ''}
                         </div>
                       </button>
                     );
