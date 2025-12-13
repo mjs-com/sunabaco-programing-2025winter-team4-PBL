@@ -520,6 +520,7 @@ export function DiaryCard({
               ? "bg-green-100 hover:bg-green-200"
               : "hover:bg-green-50"
           )} */}
+            {/* 旧コード:
             <Button
               variant="outline"
               size="sm"
@@ -534,9 +535,27 @@ export function DiaryCard({
                 handleStatusChange('CONFIRMED' as UserStatus);
               }}
             >
+            */}
+            <Button
+              disabled={isStatusUpdating}
+              variant="outline"
+              size="sm"
+              className={cn(
+                "flex-1 min-w-[70px] text-green-600 border-green-200",
+                (currentUserStatus === 'CONFIRMED' || currentUserStatus === 'WORKING' || currentUserStatus === 'SOLVED')
+                  ? "bg-green-100 hover:bg-green-200"
+                  : "hover:bg-green-50"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isStatusUpdating) return;
+                handleStatusChange('CONFIRMED' as UserStatus);
+              }}
+            >
               <CheckCircle className="h-4 w-4 mr-1" />
               確認した
             </Button>
+            {/* 旧コード:
             <Button
               variant="outline"
               size="sm"
@@ -551,9 +570,27 @@ export function DiaryCard({
                 handleStatusChange('WORKING' as UserStatus);
               }}
             >
+            */}
+            <Button
+              disabled={isStatusUpdating}
+              variant="outline"
+              size="sm"
+              className={cn(
+                "flex-1 min-w-[70px] text-blue-600 border-blue-200",
+                currentUserStatus === 'WORKING'
+                  ? "bg-blue-100 hover:bg-blue-200"
+                  : "hover:bg-blue-50"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isStatusUpdating) return;
+                handleStatusChange('WORKING' as UserStatus);
+              }}
+            >
               <Clock className="h-4 w-4 mr-1" />
               作業中
             </Button>
+            {/* 旧コード:
             <Button
               variant="outline"
               size="sm"
@@ -565,6 +602,23 @@ export function DiaryCard({
               )}
               onClick={(e) => {
                 e.stopPropagation();
+                handleStatusChange('SOLVED' as UserStatus);
+              }}
+            >
+            */}
+            <Button
+              disabled={isStatusUpdating}
+              variant="outline"
+              size="sm"
+              className={cn(
+                "flex-1 min-w-[70px] text-purple-600 border-purple-200",
+                (currentUserStatus === 'SOLVED' || diary.current_status === 'SOLVED')
+                  ? "bg-purple-100 hover:bg-purple-200"
+                  : "hover:bg-purple-50"
+              )}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isStatusUpdating) return;
                 handleStatusChange('SOLVED' as UserStatus);
               }}
             >
