@@ -121,3 +121,5 @@ Vercelにデプロイする場合:
 ## ライセンス
 
 Private - チーム内部使用のみ
+
+<!-- Test preview deployment -->
