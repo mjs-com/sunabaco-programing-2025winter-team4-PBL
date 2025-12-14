@@ -58,53 +58,60 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
       <div className="container mx-auto flex h-14 items-center justify-between px-4">
         {/* ロゴ・タイトル */}
         <Link href="/" className="flex items-center space-x-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500 text-white">
+          {/* <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500 text-white">
             <ClipboardList className="h-5 w-5" />
-          </div>
-          <span className="font-bold text-lg text-slate-800 hidden sm:inline-block">
-            クリニック日報
-          </span>
+          </div> */}
+          <img
+            src="/images/app_logo.png"
+            alt="タスクボード ロゴ"
+            className="
+              w-[100px]               /* デフォルト（〜374px） */
+              min-[375px]:w-[100px]  /* 375px以上 */
+              min-[480px]:w-[120px]  /* 480px以上 */
+              sm:w-[140px]           /* 640px以上 */
+              md:w-[160px]           /* 768px以上 */
+              h-auto
+            "
+          />
         </Link>
 
         {/* フィルターボタン */}
-        <div className="flex items-center space-x-2">
-          {/* 至急ボタン - スマホでも文字表示、アクティブ時は背景を濃く */}
+        <div className="flex items-center space-x-1 sm:space-x-2">
+          {/* 至急ボタン */}
           <Button
             variant={currentFilter === 'urgent' ? 'secondary' : 'ghost'}
             size="sm"
             className={cn(
-              "text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold transition-all",
+              "p-0 min-[375px]:px-2 min-[375px]:py-1 sm:px-3 sm:py-1.5 text-red-600 hover:text-red-700 hover:bg-red-50 font-semibold transition-all",
               currentFilter === 'urgent' && "bg-red-100 shadow-sm"
             )}
             title="至急のみ表示"
             onClick={() => toggleFilter('urgent')}
           >
-            <AlertTriangle className="h-4 w-4 sm:mr-1" />
-            <span className="ml-1 text-xs sm:text-sm">至急</span>
+            <AlertTriangle className="h-4 w-4 mr-0 sm:mr-1" />
+            <span className="ml-1 text-[10px] sm:text-sm">至急</span>
           </Button>
-
-          {/* TODOボタン - スマホでも文字表示、アクティブ時は背景を濃く */}
+          {/* TODOボタン */}
           <Button
             variant={currentFilter === 'todo' ? 'secondary' : 'ghost'}
             size="sm"
             className={cn(
-              "text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-semibold transition-all",
+              "p-0 min-[375px]:px-2 min-[375px]:py-1 sm:px-3 sm:py-1.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-semibold transition-all",
               currentFilter === 'todo' && "bg-blue-100 shadow-sm"
             )}
             title="未解決のみ表示"
             onClick={() => toggleFilter('todo')}
           >
-            <ClipboardList className="h-4 w-4 sm:mr-1" />
-            <span className="ml-1 text-xs sm:text-sm">TODO</span>
+            <ClipboardList className="h-4 w-4 mr-0 sm:mr-1" />
+            <span className="ml-1 text-[10px] sm:text-sm">TODO</span>
           </Button>
         </div>
-
         {/* 右側: ポイント・設定 */}
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-x-3">
           {/* ポイント表示（クリックでポイントページへ） */}
           <Link 
             href="/points"
-            className="flex items-center space-x-1 rounded-full bg-pink-50 px-3 py-1.5 text-pink-600 hover:bg-pink-100 transition-colors"
+            className="flex items-center space-x-1 rounded-full bg-pink-50 px-2 py-1 sm:px-3 sm:py-1.5 text-pink-600 hover:bg-pink-100 transition-colors"
             title="ポイント詳細を見る"
           >
             <Heart className="h-4 w-4 fill-current" />
@@ -112,11 +119,11 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
           </Link>
 
           {/* 設定ボタンとメニュー */}
-          <div className="relative" ref={menuRef}>
+          <div className="relative ml-auto" ref={menuRef}>
             <Button
               variant="ghost"
               size="icon"
-              className="text-slate-500"
+              className="p-0 w-8 h-8 text-slate-500"
               title="設定"
               onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
@@ -142,7 +149,7 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
                     onClick={() => setIsMenuOpen(false)}
                   >
                     <Heart className="h-4 w-4" />
-                    <span>ポイント履歴</span>
+                    <span>ポイント詳細</span>
                   </Link>
 
                   <Link
