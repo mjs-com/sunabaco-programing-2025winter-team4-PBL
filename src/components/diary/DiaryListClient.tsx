@@ -14,6 +14,10 @@ import type {
   JobType,
 } from '@/types/database.types';
 
+// 旧: 即時にUI反映していたが、反応が早すぎるとの指摘により微小ディレイを追加
+// const STATUS_UI_DELAY_MS = 0;
+const STATUS_UI_DELAY_MS = 60; // ms 単位の遅延
+
 interface DiaryListClientProps {
   diaries: DiaryWithRelations[];
   currentUserId?: number;
