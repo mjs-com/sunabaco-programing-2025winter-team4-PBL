@@ -246,6 +246,147 @@ export async function getDiariesByDate(
 }
 
 /**
+ * すべての未解決日報を取得
+ */
+export async function getAllUnsolvedDiaries(
+  currentStaffId?: number
+): Promise<DiaryWithRelations[]> {
+  const supabase = await createClient();
+
+  // 基本クエリ（未解決のみ、削除・非表示を除く）
+  let query = supabase
+    .from('DIARY')
+    .select(`
+      *,
+      category:CATEGORY(
+        category_id,
+        category_name,
+        is_active
+      ),
+      staff:STAFF!DIARY_staff_id_fkey(
+        staff_id,
+        name,
+        job_type_id,
+        job_type:JOB_TYPE(
+          job_type_id,
+          job_name
+        )
+      ),
+      updated_by_staff:STAFF!DIARY_updated_by_fkey(
+        staff_id,
+        name
+      ),
+      solved_by_staff:STAFF!DIARY_solved_by_fkey(
+        staff_id,
+        name
+      ),
+      user_statuses:USER_DIARY_STATUS(
+        id,
+        diary_id,
+        staff_id,
+        status,
+        updated_at,
+        staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(
+          staff_id,
+          name,
+          job_type_id,
+          job_type:JOB_TYPE(
+            job_type_id,
+            job_name
+          )
+        )
+      ),
+      replies:DIARY!parent_id(
+        *,
+        staff:STAFF!DIARY_staff_id_fkey(
+          staff_id,
+          name,
+          job_type_id,
+          job_type:JOB_TYPE(
+            job_type_id,
+            job_name
+          )
+        ),
+        user_statuses:USER_DIARY_STATUS(
+          id,
+          diary_id,
+          staff_id,
+          status,
+          updated_at,
+          staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(
+            staff_id,
+            name,
+            job_type_id,
+            job_type:JOB_TYPE(
+              job_type_id,
+              job_name
+            )
+          )
+        )
+      )
+    `)
+    .eq('is_deleted', false)
+    .eq('is_hidden', false)
+    .is('parent_id', null)
+    .neq('current_status', 'SOLVED');
+
+  // 宛先フィルタ用関数（ターゲット絞り込みの有無で使い分けるため分離）
+  const applyTargetFilter = (q: any, includeTargetFilter: boolean) => {
+    let internalQuery = q;
+    
+    // 宛先（target_staff_id）がある日報は、そのスタッフのみに表示
+    if (includeTargetFilter) {
+      if (currentStaffId) {
+        internalQuery = internalQuery.or(`target_staff_id.is.null,target_staff_id.eq.${currentStaffId}`);
+      } else {
+        internalQuery = internalQuery.is('target_staff_id', null);
+      }
+    }
+    
+    return internalQuery;
+  };
+
+  let data: DiaryWithRelations[] | null = null;
+  let error: any = null;
+
+  // 1. target_staff_idフィルタありで試行（古い順）
+  const queryWithTarget = applyTargetFilter(query, true).order('created_at', { ascending: true });
+  
+  const result1 = await queryWithTarget;
+  
+  if (result1.error) {
+    if ((result1.error as any).code === '42703' && String((result1.error as any).message || '').includes('target_staff_id')) {
+      const queryWithoutTarget = applyTargetFilter(query, false).order('created_at', { ascending: true });
+      const result2 = await queryWithoutTarget;
+      data = result2.data as DiaryWithRelations[];
+      error = result2.error;
+    } else {
+      error = result1.error;
+    }
+  } else {
+    data = result1.data as DiaryWithRelations[];
+  }
+
+  if (error) {
+    console.error('Error fetching all unsolved diaries:', error);
+    return [];
+  }
+
+  let diaries = data || [];
+
+  // 返信を日付順にソート
+  diaries.forEach(diary => {
+    if (diary.replies) {
+      diary.replies.sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+    }
+  });
+
+  return diaries;
+}
+
+/**
  * カテゴリ一覧を取得
  */
 export async function getCategories(): Promise<Category[]> {
