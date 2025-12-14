@@ -69,7 +69,7 @@ export default function CleaningDutyCalendarPage() {
 
   const [monthCursor, setMonthCursor] = useState<Date>(getMonthStart(getToday()));
   const [assignments, setAssignments] = useState<CleaningDutyAssignment[]>([]);
-
+  
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
@@ -79,6 +79,7 @@ export default function CleaningDutyCalendarPage() {
   // 繰り返し登録モーダル
   const [showRecurringModal, setShowRecurringModal] = useState(false);
   const [recStaffId, setRecStaffId] = useState<number>(0);
+  const [recSlot, setRecSlot] = useState<number>(1); // 1=上段, 2=下段
   const [recStartDate, setRecStartDate] = useState<string>(toISODateString(getToday()));
   const [recEndDate, setRecEndDate] = useState<string>(toISODateString(addMonths(getToday(), 1)));
   const [recWeekDays, setRecWeekDays] = useState<number[]>([1]);
@@ -86,7 +87,7 @@ export default function CleaningDutyCalendarPage() {
   // 単日編集モーダル
   const [showDayModal, setShowDayModal] = useState(false);
   const [dayDate, setDayDate] = useState<string>('');
-  const [dayStaffId, setDayStaffId] = useState<number>(0);
+  const [dayStaffIds, setDayStaffIds] = useState<{ [slot: number]: number }>({ 1: 0, 2: 0 });
   const [dayRepeatEnabled, setDayRepeatEnabled] = useState(false);
   const [dayRepeatEndDate, setDayRepeatEndDate] = useState<string>(toISODateString(addMonths(getToday(), 1)));
   const [dayRepeatWeekDays, setDayRepeatWeekDays] = useState<number[]>([]);
@@ -103,8 +104,13 @@ export default function CleaningDutyCalendarPage() {
   }, [monthCursor]);
 
   const assignmentMap = useMemo(() => {
-    const map = new Map<string, number>();
-    assignments.forEach((a) => map.set(a.duty_date, a.staff_id));
+    // Map<YYYY-MM-DD, { 1: staffId, 2: staffId }>
+    const map = new Map<string, { [slot: number]: number }>();
+    assignments.forEach((a) => {
+      const current = map.get(a.duty_date) || {};
+      current[a.slot] = a.staff_id;
+      map.set(a.duty_date, current);
+    });
     return map;
   }, [assignments]);
 
@@ -190,7 +196,8 @@ export default function CleaningDutyCalendarPage() {
     setError(null);
     setSuccess(null);
     setDayDate(iso);
-    setDayStaffId(assignmentMap.get(iso) ?? 0);
+    const assigned = assignmentMap.get(iso) || {};
+    setDayStaffIds({ 1: assigned[1] || 0, 2: assigned[2] || 0 });
     setDayRepeatEnabled(false);
     setDayRepeatEndDate(toISODateString(addMonths(parseISODate(iso), 1)));
     // 曜日は選択された日の曜日をデフォルトに
@@ -270,6 +277,7 @@ export default function CleaningDutyCalendarPage() {
         startDate: recStartDate,
         endDate: recEndDate,
         weekDays: recWeekDays,
+        slot: recSlot,
       });
 
       if (!res.success) {
@@ -277,7 +285,7 @@ export default function CleaningDutyCalendarPage() {
         return;
       }
 
-      setSuccess('繰り返し登録しました');
+      setSuccess(`繰り返し登録しました（${recSlot === 1 ? '上段' : '下段'}）`);
       setShowRecurringModal(false);
       // 登録後は曜日選択をリセット（次回登録時に誤って上書きしないように）
       setRecWeekDays([]);
@@ -293,40 +301,39 @@ export default function CleaningDutyCalendarPage() {
     setSuccess(null);
 
     startTransition(async () => {
-      if (!dayStaffId) {
-        const res = await deleteCleaningDutyAssignmentForDate(dayDate);
-        if (!res.success) {
-          setError(res.error || '解除に失敗しました');
-          return;
-        }
-        setSuccess('解除しました');
-        setShowDayModal(false);
-        await loadAssignments();
-        return;
-      }
-
-      // 「この日から繰り返し」ONの場合は、登録画面と同等の一括上書き
-      if (dayRepeatEnabled) {
-        const res = await upsertCleaningDutyAssignments({
-          staffId: dayStaffId,
+      // Slot 1 (上段)
+      const staffId1 = dayStaffIds[1];
+      if (!staffId1) {
+        await deleteCleaningDutyAssignmentForDate(dayDate, 1);
+      } else if (dayRepeatEnabled) {
+        await upsertCleaningDutyAssignments({
+          staffId: staffId1,
           startDate: dayDate,
           endDate: dayRepeatEndDate,
           weekDays: dayRepeatWeekDays.length > 0 ? dayRepeatWeekDays : [parseISODate(dayDate).getDay()],
+          slot: 1,
         });
-        if (!res.success) {
-          setError(res.error || '繰り返し保存に失敗しました');
-          return;
-        }
-        setSuccess('繰り返しで保存しました');
       } else {
-        const res = await setCleaningDutyAssignmentForDate(dayDate, dayStaffId);
-        if (!res.success) {
-          setError(res.error || '保存に失敗しました');
-          return;
-        }
-        setSuccess('保存しました');
+        await setCleaningDutyAssignmentForDate(dayDate, staffId1, 1);
       }
 
+      // Slot 2 (下段)
+      const staffId2 = dayStaffIds[2];
+      if (!staffId2) {
+        await deleteCleaningDutyAssignmentForDate(dayDate, 2);
+      } else if (dayRepeatEnabled) {
+        await upsertCleaningDutyAssignments({
+          staffId: staffId2,
+          startDate: dayDate,
+          endDate: dayRepeatEndDate,
+          weekDays: dayRepeatWeekDays.length > 0 ? dayRepeatWeekDays : [parseISODate(dayDate).getDay()],
+          slot: 2,
+        });
+      } else {
+        await setCleaningDutyAssignmentForDate(dayDate, staffId2, 2);
+      }
+
+      setSuccess('保存しました');
       setShowDayModal(false);
       await loadAssignments();
     });
@@ -340,11 +347,9 @@ export default function CleaningDutyCalendarPage() {
     setSuccess(null);
 
     startTransition(async () => {
-      const res = await deleteCleaningDutyAssignmentForDate(dayDate);
-      if (!res.success) {
-        setError(res.error || '解除に失敗しました');
-        return;
-      }
+      // 両方のスロットを削除
+      await deleteCleaningDutyAssignmentForDate(dayDate, 1);
+      await deleteCleaningDutyAssignmentForDate(dayDate, 2);
 
       setSuccess('解除しました');
       setShowDayModal(false);
@@ -466,9 +471,16 @@ export default function CleaningDutyCalendarPage() {
                       return <div key={idx} className="h-20 rounded-lg bg-transparent" />;
                     }
 
-                    const staffId = assignmentMap.get(cell.iso);
-                    const staffName = staffId ? staffNameMap.get(staffId) : undefined;
-                    const staffColor = staffId ? staffColorMap.get(staffId) : undefined;
+                    const assigned = assignmentMap.get(cell.iso) || {};
+                    const staffId1 = assigned[1];
+                    const staffId2 = assigned[2];
+                    
+                    const staffName1 = staffId1 ? staffNameMap.get(staffId1) : undefined;
+                    const staffName2 = staffId2 ? staffNameMap.get(staffId2) : undefined;
+                    
+                    const staffColor1 = staffId1 ? staffColorMap.get(staffId1) : '#ffffff';
+                    const staffColor2 = staffId2 ? staffColorMap.get(staffId2) : '#ffffff';
+                    
                     const isSunday = cell.date.getDay() === 0;
                     const isSaturday = cell.date.getDay() === 6;
                     const isToday = cell.iso === toISODateString(getToday());
@@ -481,29 +493,46 @@ export default function CleaningDutyCalendarPage() {
                           if (canEdit) openDayModal(cell.iso);
                         }}
                         className={cn(
-                          'h-20 rounded-lg border text-left p-2 transition-all',
+                          'h-20 rounded-lg border text-left transition-all overflow-hidden relative flex flex-col',
                           canEdit && 'cursor-pointer hover:opacity-80 hover:shadow-md',
                           !canEdit && 'cursor-default',
                           isToday && 'border-primary-500 ring-2 ring-primary-100',
-                          !staffId && isSunday && 'border-red-100',
-                          !staffId && isSaturday && 'border-blue-100'
+                          (!staffId1 && !staffId2) && isSunday && 'border-red-100',
+                          (!staffId1 && !staffId2) && isSaturday && 'border-blue-100'
                         )}
-                        style={{
-                          backgroundColor: staffColor || (staffId ? '#e2e8f0' : '#ffffff'),
-                        }}
                         disabled={!canEdit || isPending}
                         title={canEdit ? 'クリックして当番を変更' : undefined}
                       >
-                        <span
-                          className={cn(
-                            'text-sm font-semibold',
-                            staffColor ? 'text-slate-800' : (isSunday ? 'text-red-600' : isSaturday ? 'text-blue-600' : 'text-slate-800')
-                          )}
+                        {/* 日付表示（絶対配置） */}
+                        <div className="absolute top-1 left-2 z-10">
+                          <span
+                            className={cn(
+                              'text-sm font-semibold drop-shadow-md bg-white/50 px-1 rounded',
+                              (isSunday ? 'text-red-600' : isSaturday ? 'text-blue-600' : 'text-slate-800')
+                            )}
+                          >
+                            {cell.date.getDate()}
+                          </span>
+                        </div>
+
+                        {/* 上段 (Slot 1) */}
+                        <div 
+                          className="flex-1 w-full flex items-center justify-center pt-4 px-1"
+                          style={{ backgroundColor: staffColor1 }}
                         >
-                          {cell.date.getDate()}
-                        </span>
-                        <div className="mt-2 text-xs text-slate-700 line-clamp-2 font-medium">
-                          {staffName || ''}
+                          <span className="text-[10px] text-slate-800 font-medium truncate w-full text-center">
+                            {staffName1 || ''}
+                          </span>
+                        </div>
+
+                        {/* 下段 (Slot 2) */}
+                        <div 
+                          className="flex-1 w-full flex items-center justify-center pb-1 px-1"
+                          style={{ backgroundColor: staffColor2 }}
+                        >
+                          <span className="text-[10px] text-slate-800 font-medium truncate w-full text-center">
+                            {staffName2 || ''}
+                          </span>
                         </div>
                       </button>
                     );
@@ -532,6 +561,32 @@ export default function CleaningDutyCalendarPage() {
               </div>
 
               <div className="p-5 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-slate-700">対象枠</label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="recSlot"
+                        checked={recSlot === 1}
+                        onChange={() => setRecSlot(1)}
+                        className="w-4 h-4 text-primary-600"
+                      />
+                      <span className="text-sm text-slate-700">上段 (担当者①)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="recSlot"
+                        checked={recSlot === 2}
+                        onChange={() => setRecSlot(2)}
+                        className="w-4 h-4 text-primary-600"
+                      />
+                      <span className="text-sm text-slate-700">下段 (担当者②)</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-slate-700">担当者</label>
                   <Select value={recStaffId} onChange={(e) => setRecStaffId(Number(e.target.value))}>
@@ -627,16 +682,35 @@ export default function CleaningDutyCalendarPage() {
               <div className="p-5 space-y-4">
                 <p className="text-sm text-slate-600">{dayDate ? formatDate(dayDate) : ''}</p>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">担当者</label>
-                  <Select value={dayStaffId} onChange={(e) => setDayStaffId(Number(e.target.value))}>
-                    <option value={0}>未設定（解除）</option>
-                    {staffList.map((s) => (
-                      <option key={s.staff_id} value={s.staff_id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </Select>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">担当者① (上段)</label>
+                    <Select
+                      value={dayStaffIds[1] || 0}
+                      onChange={(e) => setDayStaffIds(prev => ({ ...prev, 1: Number(e.target.value) }))}
+                    >
+                      <option value={0}>未設定</option>
+                      {staffList.map((s) => (
+                        <option key={s.staff_id} value={s.staff_id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-slate-700">担当者② (下段)</label>
+                    <Select
+                      value={dayStaffIds[2] || 0}
+                      onChange={(e) => setDayStaffIds(prev => ({ ...prev, 2: Number(e.target.value) }))}
+                    >
+                      <option value={0}>未設定</option>
+                      {staffList.map((s) => (
+                        <option key={s.staff_id} value={s.staff_id}>
+                          {s.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
                 </div>
 
                 <div className="rounded-lg border border-slate-200 p-4 space-y-3">
