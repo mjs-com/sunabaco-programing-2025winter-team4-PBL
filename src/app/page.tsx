@@ -8,7 +8,7 @@ import { DiaryListClient } from '@/components/diary/DiaryListClient';
 import { getCleaningDutyDiaryForStaff } from '@/app/actions/cleaningDuty';
 
 interface PageProps {
-  searchParams: Promise<{ date?: string; filter?: 'urgent' | 'todo' }>;
+  searchParams: Promise<{ date?: string; filter?: 'urgent' | 'todo'; sort?: 'asc' | 'desc' }>;
 }
 
 export default async function HomePage({ searchParams }: PageProps) {
@@ -21,8 +21,14 @@ export default async function HomePage({ searchParams }: PageProps) {
   const filter = params.filter;
   const isToday = dateString === todayString;
 
+  // ソート順の決定（TODO/至急の場合はデフォルトで古い順(asc)）
+  let sortOrder = params.sort;
+  if (!sortOrder && (filter === 'todo' || filter === 'urgent')) {
+    sortOrder = 'asc';
+  }
+
   // データ取得
-  console.log('Fetching data for date:', dateString, 'filter:', filter);
+  console.log('Fetching data for date:', dateString, 'filter:', filter, 'sort:', sortOrder);
   
   try {
     // 先にスタッフ情報を取得
@@ -38,7 +44,7 @@ export default async function HomePage({ searchParams }: PageProps) {
       : 0;
 
     const [diaries, categories] = await Promise.all([
-      getDiariesByDate(dateString, filter, currentStaff?.staff_id, jobTypeName, staffName),
+      getDiariesByDate(dateString, filter, currentStaff?.staff_id, jobTypeName, staffName, sortOrder),
       getCategories(),
     ]);
 

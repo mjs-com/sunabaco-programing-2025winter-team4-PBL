@@ -29,12 +29,13 @@ export async function getDiariesByDate(
   filter?: 'urgent' | 'todo' | null,
   currentStaffId?: number,
   currentStaffJobType?: string,
-  currentStaffName?: string
+  currentStaffName?: string,
+  sortOrder: 'asc' | 'desc' = 'desc'
 ): Promise<DiaryWithRelations[]> {
   const supabase = await createClient();
 
-  // 外部キーを明示的に指定（複数の外部キーがSTAFFを参照するため）
-  const baseQuery = supabase
+  // 基本クエリ（日付やフィルタ条件は後で追加）
+  let query = supabase
     .from('DIARY')
     .select(`
       *,
@@ -105,38 +106,67 @@ export async function getDiariesByDate(
         )
       )
     `)
-    .eq('target_date', targetDate)
     .eq('is_deleted', false)
     .eq('is_hidden', false)
     .is('parent_id', null);
 
-  // 条件を組み立て（DBに target_staff_id がない環境でも動くようにフォールバック）
-  const applyFilters = (q: typeof baseQuery, opts: { includeTargetFilter: boolean }) => {
-    let query = q;
+  // フィルタ条件の適用
+  if (filter === 'todo' || filter === 'urgent') {
+    // TODOまたは至急の場合は、未解決のみを表示（日付指定なし＝過去分も含む）
+    query = query.neq('current_status', 'SOLVED');
 
-    // 宛先（target_staff_id）がある日報は、そのスタッフのみに表示
-    // ※ target_staff_id が未導入のDBでは、この条件を付けるとエラーになるためフォールバックします
-    if (opts.includeTargetFilter) {
-      if (currentStaffId) {
-        query = query.or(`target_staff_id.is.null,target_staff_id.eq.${currentStaffId}`);
-      } else {
-        query = query.is('target_staff_id', null);
-      }
-    }
-
-    // 至急フィルター
     if (filter === 'urgent') {
       query = query.eq('is_urgent', true);
     }
+    // note: 'todo' の場合のメンション判定は複雑なため、データ取得後にJS側で行う
+  } else {
+    // 通常表示の場合は日付で絞り込み
+    query = query.eq('target_date', targetDate);
+  }
 
-    return query;
+  // 宛先フィルタ用関数（ターゲット絞り込みの有無で使い分けるため分離）
+  const applyTargetFilter = (q: any, includeTargetFilter: boolean) => {
+    let internalQuery = q;
+    
+    // 宛先（target_staff_id）がある日報は、そのスタッフのみに表示
+    if (includeTargetFilter) {
+      if (currentStaffId) {
+        internalQuery = internalQuery.or(`target_staff_id.is.null,target_staff_id.eq.${currentStaffId}`);
+      } else {
+        internalQuery = internalQuery.is('target_staff_id', null);
+      }
+    }
+    
+    return internalQuery;
   };
 
-  let { data, error } = await applyFilters(baseQuery, { includeTargetFilter: true }).order('created_at', { ascending: false });
+  // データを取得（target_staff_idカラムが存在しない場合のフォールバック付き）
+  let data: DiaryWithRelations[] | null = null;
+  let error: any = null;
 
-  // target_staff_id 未導入のDBの場合は、宛先フィルタを外して再試行
-  if (error && (error as any).code === '42703' && String((error as any).message || '').includes('target_staff_id')) {
-    ({ data, error } = await applyFilters(baseQuery, { includeTargetFilter: false }).order('created_at', { ascending: false }));
+  // 1. target_staff_idフィルタありで試行
+  // ソート順は指定に従う（デフォルトは作成日）
+  const orderDirection = sortOrder === 'asc' ? true : false;
+  
+  // クエリの複製はできないため、ここでクエリを実行
+  // order指定: 期限があるものは期限順、ないものは作成日順などのロジックはJS側でやるため、
+  // ここではとりあえず作成日順で取得しておく
+  const queryWithTarget = applyTargetFilter(query, true).order('created_at', { ascending: orderDirection });
+  
+  const result1 = await queryWithTarget;
+  
+  if (result1.error) {
+    // エラーが target_staff_id 関連なら、フィルタなしで再試行
+    if ((result1.error as any).code === '42703' && String((result1.error as any).message || '').includes('target_staff_id')) {
+      const queryWithoutTarget = applyTargetFilter(query, false).order('created_at', { ascending: orderDirection });
+      const result2 = await queryWithoutTarget;
+      data = result2.data as DiaryWithRelations[];
+      error = result2.error;
+    } else {
+      error = result1.error;
+    }
+  } else {
+    data = result1.data as DiaryWithRelations[];
   }
 
   if (error) {
@@ -144,12 +174,12 @@ export async function getDiariesByDate(
     return [];
   }
 
-  let diaries = data as DiaryWithRelations[];
+  let diaries = data || [];
 
   // TODOフィルター（自分宛てのみ表示）
   if (filter === 'todo' && currentStaffId) {
     diaries = diaries.filter(diary => {
-      // 未解決のみ
+      // 未解決のみ (DBで絞っているが念のため)
       if (diary.current_status === 'SOLVED') return false;
       
       // メンション判定
@@ -171,26 +201,45 @@ export async function getDiariesByDate(
     }
   });
 
-  // 並び替え: 未解決を上、解決済みを下
-  // 未解決の中では期限が近い順 > 作成日が新しい順
+  // 並び替え: 
+  // ユーザー指定の並び順 (asc/desc) に従う
   diaries.sort((a, b) => {
-    // 解決済みは下に
-    if (a.current_status === 'SOLVED' && b.current_status !== 'SOLVED') return 1;
-    if (a.current_status !== 'SOLVED' && b.current_status === 'SOLVED') return -1;
+    // 通常表示の場合の既存ロジック（未解決上、解決済み下など）は、
+    // ユーザーが明示的にソートを指定していない場合（filterなし、sortなし）に適用すべきかもしれないが、
+    // 今回の改修ではfilterがある場合の挙動がメイン。
     
-    // 両方とも未解決の場合、期限でソート
-    if (a.current_status !== 'SOLVED' && b.current_status !== 'SOLVED') {
-      // 期限がある場合は期限順
-      if (a.deadline && b.deadline) {
-        return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
-      }
-      // 片方だけ期限がある場合、期限があるほうを上に
-      if (a.deadline && !b.deadline) return -1;
-      if (!a.deadline && b.deadline) return 1;
+    // filterがない場合（通常の日付表示）は、既存の「未解決優先」などのロジックを残すべきか？
+    // 要望には「トップページのtodoを押すと...」「至急ボタンについても...」とあるので、
+    // 通常表示（特定の日付表示）については言及されていない。
+    // しかし、getDiariesByDateは共通で使われている。
+    
+    if (!filter) {
+        // 既存のロジック（未解決優先など）を維持したい場合
+        // 解決済みは下に
+        if (a.current_status === 'SOLVED' && b.current_status !== 'SOLVED') return 1;
+        if (a.current_status !== 'SOLVED' && b.current_status === 'SOLVED') return -1;
+        
+        // 両方とも未解決の場合、期限でソート
+        if (a.current_status !== 'SOLVED' && b.current_status !== 'SOLVED') {
+          if (a.deadline && b.deadline) {
+            return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+          }
+          if (a.deadline && !b.deadline) return -1;
+          if (!a.deadline && b.deadline) return 1;
+        }
+        // 期限がない場合は作成日順（新しい順 = desc）
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     }
     
-    // 期限がない場合は作成日順（新しい順）
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    // filterがある場合（TODO/Urgent）は単純な日付ソート
+    const timeA = new Date(a.created_at).getTime();
+    const timeB = new Date(b.created_at).getTime();
+    
+    if (sortOrder === 'asc') {
+      return timeA - timeB;
+    } else {
+      return timeB - timeA;
+    }
   });
 
   return diaries;
