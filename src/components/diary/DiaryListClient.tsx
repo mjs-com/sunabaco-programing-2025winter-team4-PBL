@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useTransition, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { DiaryList } from './DiaryList';
 import { DiaryDetailModal } from './DiaryDetailModal';
@@ -9,14 +9,25 @@ import { getActiveStaff } from '@/app/actions/staff';
 import type {
   DiaryWithRelations,
   UserStatus,
+  DiaryStatus,
   Category,
   StaffBasicInfo,
   JobType,
 } from '@/types/database.types';
 
-// 旧: 即時にUI反映していたが、反応が早すぎるとの指摘により微小ディレイを追加
-// const STATUS_UI_DELAY_MS = 0;
-const STATUS_UI_DELAY_MS = 60; // ms 単位の遅延
+/* ==============================
+ * Server Action の戻り値型
+ * ============================== */
+type UpdateDiaryStatusResult =
+  | {
+    success: true;
+    newUserStatus: UserStatus;
+    newDiaryStatus: DiaryStatus;
+  }
+  | {
+    success: false;
+    error: string;
+  };
 
 interface DiaryListClientProps {
   diaries: DiaryWithRelations[];
@@ -34,13 +45,19 @@ export function DiaryListClient({
   categories,
 }: DiaryListClientProps) {
   const router = useRouter();
-  const [pendingStatusByDiaryId, setPendingStatusByDiaryId] = useState<Record<number, boolean>>({});
-  const [isPending, startTransition] = useTransition();
-  const [selectedDiaryId, setSelectedDiaryId] = useState<number | null>(null);
+  const [, startTransition] = useTransition();
+
   const [localDiaries, setLocalDiaries] = useState<DiaryWithRelations[]>(diaries);
+  const [pendingStatusByDiaryId, setPendingStatusByDiaryId] =
+    useState<Record<number, boolean>>({});
+  const [selectedDiaryId, setSelectedDiaryId] = useState<number | null>(null);
+
   const [staffList, setStaffList] = useState<StaffBasicInfo[]>([]);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
 
+  /* ------------------------------
+   * 初期データ取得
+   * ------------------------------ */
   useEffect(() => {
     Promise.all([getActiveStaff(), getJobTypes()])
       .then(([staff, jobs]) => {
@@ -54,50 +71,57 @@ export function DiaryListClient({
     setLocalDiaries(diaries);
   }, [diaries]);
 
+  /* ------------------------------
+   * 選択中の日報
+   * ------------------------------ */
   const selectedDiary = useMemo(() => {
     if (selectedDiaryId == null) return null;
     return localDiaries.find(d => d.diary_id === selectedDiaryId) ?? null;
   }, [localDiaries, selectedDiaryId]);
 
+  /* ------------------------------
+   * ステータス変更（最終・型安全版）
+   * ------------------------------ */
   const handleStatusChange = useCallback(
-    (diaryId: number, status: UserStatus) => {
+    async (diaryId: number, status: UserStatus) => {
       if (!currentUserId) {
         alert('ログインが必要です');
         return;
       }
 
-      if (pendingStatusByDiaryId[diaryId]) {
-        return;
-      }
+      // 排他制御
+      setPendingStatusByDiaryId(prev => {
+        if (prev[diaryId]) return prev;
+        return { ...prev, [diaryId]: true };
+      });
 
-      setPendingStatusByDiaryId(prev => ({ ...prev, [diaryId]: true }));
-
-      const before = localDiaries;
-      const target = localDiaries.find(d => d.diary_id === diaryId);
-      const prevUserStatus = target?.user_statuses?.find(us => us.staff_id === currentUserId)?.status ?? 'UNREAD';
-      const isToggleOff = prevUserStatus === status;
-      const optimisticUserStatus: UserStatus = isToggleOff ? 'UNREAD' : status;
-
+      const nowIso = new Date().toISOString();
       const currentStaff = staffList.find(s => s.staff_id === currentUserId);
 
+      let beforeDiary: DiaryWithRelations | null = null;
+      let optimisticUserStatus: UserStatus = status;
+
+      /* ---------- Optimistic Update ---------- */
       setLocalDiaries(prev =>
         prev.map(d => {
           if (d.diary_id !== diaryId) return d;
 
+          beforeDiary = d;
+
           const userStatuses = d.user_statuses ? [...d.user_statuses] : [];
           const idx = userStatuses.findIndex(us => us.staff_id === currentUserId);
-          const nowIso = new Date().toISOString();
+          const prevStatus: UserStatus =
+            idx >= 0 ? userStatuses[idx].status : 'UNREAD';
+
+          const isToggleOff = prevStatus === status;
+          optimisticUserStatus = isToggleOff ? 'UNREAD' : status;
 
           if (idx >= 0) {
             userStatuses[idx] = {
               ...userStatuses[idx],
               status: optimisticUserStatus,
               updated_at: nowIso,
-              staff:
-                userStatuses[idx].staff ??
-                (currentStaff as any) ??
-                (currentUserName ? ({ staff_id: currentUserId, name: currentUserName } as any) : undefined),
-            } as any;
+            };
           } else {
             userStatuses.push({
               id: -Date.now(),
@@ -105,74 +129,91 @@ export function DiaryListClient({
               staff_id: currentUserId,
               status: optimisticUserStatus,
               updated_at: nowIso,
-              staff:
-                (currentStaff as any) ??
-                (currentUserName ? ({ staff_id: currentUserId, name: currentUserName } as any) : undefined),
+              staff: currentStaff ?? {
+                staff_id: currentUserId,
+                name: currentUserName,
+              },
             } as any);
           }
 
-          let nextDiaryStatus = d.current_status;
+          let nextDiaryStatus: DiaryStatus = d.current_status;
           if (!isToggleOff && d.current_status !== 'SOLVED') {
-            nextDiaryStatus = status as any;
+            nextDiaryStatus = status as DiaryStatus;
           }
           if (status === 'SOLVED' && !isToggleOff) {
-            nextDiaryStatus = 'SOLVED' as any;
+            nextDiaryStatus = 'SOLVED';
           }
 
           return {
             ...d,
             current_status: nextDiaryStatus,
             user_statuses: userStatuses,
-          } as any;
+          };
         })
       );
 
-      startTransition(async () => {
-        try {
-          const result = await updateUserDiaryStatus(diaryId, currentUserId, status);
-          if (!result?.success) {
-            setLocalDiaries(before);
-            alert(`エラー: ${result?.error || 'ステータス更新に失敗しました'}`);
-            return;
-          }
+      /* ---------- Server Action ---------- */
+      let result: UpdateDiaryStatusResult;
 
+      try {
+        result = (await updateUserDiaryStatus(
+          diaryId,
+          currentUserId,
+          status
+        )) as UpdateDiaryStatusResult;
+      } catch (e) {
+        console.error(e);
+        result = { success: false, error: '通信エラーが発生しました' };
+      }
+
+      /* ---------- 結果反映 ---------- */
+      if (!result.success && beforeDiary) {
+        startTransition(() => {
           setLocalDiaries(prev =>
-            prev.map(d => {
-              if (d.diary_id !== diaryId) return d;
-              const userStatuses = d.user_statuses ? [...d.user_statuses] : [];
-              const idx = userStatuses.findIndex(us => us.staff_id === currentUserId);
-              const nowIso = new Date().toISOString();
-              const serverUserStatus = (result.newUserStatus || optimisticUserStatus) as UserStatus;
-              if (idx >= 0) {
-                userStatuses[idx] = {
-                  ...userStatuses[idx],
-                  status: serverUserStatus,
-                  updated_at: nowIso,
-                } as any;
-              }
-              return {
-                ...d,
-                current_status: (result.newDiaryStatus ? (result.newDiaryStatus as any) : d.current_status),
-                user_statuses: userStatuses,
-              } as any;
-            })
+            prev.map(d => (d.diary_id === diaryId ? beforeDiary! : d))
           );
-        } catch (e) {
-          console.error(e);
-          setLocalDiaries(before);
-          alert('エラー: ステータス更新に失敗しました');
-        } finally {
-          setPendingStatusByDiaryId(prev => {
-            const next = { ...prev };
-            delete next[diaryId];
-            return next;
-          });
-        }
+        });
+        alert(`エラー: ${result.error}`);
+      }
+
+      if (result.success) {
+        setLocalDiaries(prev =>
+          prev.map(d => {
+            if (d.diary_id !== diaryId) return d;
+
+            const userStatuses = d.user_statuses ? [...d.user_statuses] : [];
+            const idx = userStatuses.findIndex(us => us.staff_id === currentUserId);
+
+            if (idx >= 0) {
+              userStatuses[idx] = {
+                ...userStatuses[idx],
+                status: result.newUserStatus,
+                updated_at: nowIso,
+              };
+            }
+
+            return {
+              ...d,
+              current_status: result.newDiaryStatus,
+              user_statuses: userStatuses,
+            };
+          })
+        );
+      }
+
+      /* ---------- pending 即解除 ---------- */
+      setPendingStatusByDiaryId(prev => {
+        const next = { ...prev };
+        delete next[diaryId];
+        return next;
       });
     },
-    [currentUserId, currentUserName, staffList, localDiaries, pendingStatusByDiaryId]
+    [currentUserId, currentUserName, staffList]
   );
 
+  /* ------------------------------
+   * その他ハンドラ
+   * ------------------------------ */
   const handleDiaryClick = useCallback((diaryId: number) => {
     setSelectedDiaryId(diaryId);
   }, []);
@@ -185,6 +226,9 @@ export function DiaryListClient({
     router.refresh();
   }, [router]);
 
+  /* ------------------------------
+   * Render
+   * ------------------------------ */
   return (
     <>
       <DiaryList
@@ -215,32 +259,3 @@ export function DiaryListClient({
     </>
   );
 }
-
-/* --- 旧バージョンの handleStatusChange（クールダウンとディレイあり）をコメントアウトで保存 ---
-const [lastClickTimeByDiaryId, setLastClickTimeByDiaryId] = useState<Record<number, number>>({});
-
-const handleStatusChange = useCallback(
-  (diaryId: number, status: UserStatus) => {
-    if (!currentUserId) {
-      alert('ログインが必要です');
-      return;
-    }
-
-    const now = Date.now();
-    const lastClickTime = lastClickTimeByDiaryId[diaryId] || 0;
-    const COOLDOWN_MS = 1000;
-
-    if (now - lastClickTime < COOLDOWN_MS) {
-      return;
-    }
-
-    setLastClickTimeByDiaryId(prev => ({ ...prev, [diaryId]: now }));
-
-    const UI_DELAY_MS = 120;
-    setTimeout(() => {
-      // ...（中略：現在の handleStatusChange と同様の処理）
-    }, UI_DELAY_MS);
-  },
-  [currentUserId, currentUserName, staffList, localDiaries, lastClickTimeByDiaryId]
-);
-*/
