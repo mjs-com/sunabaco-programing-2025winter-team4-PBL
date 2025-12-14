@@ -2,9 +2,12 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'クリニック日報アプリ',
-  description: 'クリニックスタッフ向け業務引き継ぎ・日報共有アプリ',
+  title: 'TaskBoard',
+  description: 'クリニックスタッフ向け業務引き継ぎ・日報共有アプリ TaskBoard',
   manifest: '/manifest.json',
+  icons: {
+    icon: '/images/favicon.ico', // ← ここでファビコンを指定！
+  },
 };
 
 export const viewport: Viewport = {

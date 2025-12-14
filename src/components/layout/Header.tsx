@@ -43,13 +43,13 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
 
   const toggleFilter = (filter: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    
+
     if (currentFilter === filter) {
       params.delete('filter');
     } else {
       params.set('filter', filter);
     }
-    
+
     router.push(`/?${params.toString()}`);
   };
 
@@ -65,7 +65,7 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
             src="/images/app_logo.png"
             alt="タスクボード ロゴ"
             className="
-              w-[100px]               /* デフォルト（〜374px） */
+              w-[88px]               /* デフォルト（〜374px） */
               min-[375px]:w-[100px]  /* 375px以上 */
               min-[480px]:w-[120px]  /* 480px以上 */
               sm:w-[140px]           /* 640px以上 */
@@ -107,9 +107,9 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
           </Button>
         </div>
         {/* 右側: ポイント・設定 */}
-        <div className="flex items-center gap-x-3">
+        <div className="flex items-center gap-x-2">
           {/* ポイント表示（クリックでポイントページへ） */}
-          <Link 
+          <Link
             href="/points"
             className="flex items-center space-x-1 rounded-full bg-pink-50 px-2 py-1 sm:px-3 sm:py-1.5 text-pink-600 hover:bg-pink-100 transition-colors"
             title="ポイント詳細を見る"
@@ -189,9 +189,9 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
                       <span>ユーザー管理画面</span>
                     </Link>
                   )}
-                  
+
                   <div className="border-t border-slate-100 mt-1 pt-1">
-                    <form 
+                    <form
                       action={logout}
                       onSubmit={() => setIsMenuOpen(false)}
                     >

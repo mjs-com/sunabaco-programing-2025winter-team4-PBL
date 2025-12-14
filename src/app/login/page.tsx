@@ -62,7 +62,7 @@ export default function LoginPage() {
   async function handleRegister(formData: FormData) {
     setError(null);
     const result = await registerStaff(formData);
-    
+
     if (result?.error) {
       setError(result.error);
     } else if (result?.success) {
@@ -78,12 +78,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 via-white to-primary-100 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-500 text-white shadow-lg">
-            <ClipboardList className="h-8 w-8" />
-          </div>
-          <CardTitle className="text-2xl font-bold text-slate-800">
-            クリニック日報
-          </CardTitle>
+          <img
+            src="/images/app_logo.png"
+            alt="タスクボード ロゴ"
+            className="w-3/4 mx-auto"
+          />
           <p className="text-sm text-slate-500 mt-1">
             業務引き継ぎ・日報共有アプリ
           </p>
