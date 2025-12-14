@@ -296,7 +296,7 @@ export function DiaryCard({
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <CategoryBadge categoryName={diary.category?.category_name || ''} />
               <span className="text-xs text-slate-500">{diary.staff?.name || '不明'}</span>
-              <span className="text-xs text-slate-400">{formatTime(diary.created_at)}</span>
+              <span className="text-xs text-slate-400">{formatDate(diary.created_at)} {formatTime(diary.created_at)}</span>
               {isEdited && (
                 <span className="text-xs text-slate-400 italic">編集済み</span>
               )}
@@ -374,7 +374,7 @@ export function DiaryCard({
                         {reply.staff?.name?.charAt(0) || '?'}
                       </div>
                       <span className="font-medium text-slate-700">{reply.staff?.name}</span>
-                      <span className="text-xs text-slate-400">{formatTime(reply.created_at)}</span>
+                      <span className="text-xs text-slate-400">{formatDate(reply.created_at)} {formatTime(reply.created_at)}</span>
                       {isReplyUrgent && (
                         <AlertTriangle className="h-3 w-3 text-red-500" />
                       )}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
-import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy, Calendar, Settings2 } from 'lucide-react';
+import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy, Calendar, Settings2, ArrowUpNarrowWide, ArrowDownWideNarrow } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +19,7 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentFilter = searchParams.get('filter');
+  const currentSort = searchParams.get('sort'); // ソート順取得
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -46,10 +47,19 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
     
     if (currentFilter === filter) {
       params.delete('filter');
+      params.delete('sort'); // フィルタ解除時はソートもリセット
     } else {
       params.set('filter', filter);
+      params.set('sort', 'asc'); // フィルタ設定時はデフォルトで古い順
     }
     
+    router.push(`/?${params.toString()}`);
+  };
+
+  const toggleSort = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    const newSort = currentSort === 'asc' ? 'desc' : 'asc';
+    params.set('sort', newSort);
     router.push(`/?${params.toString()}`);
   };
 
@@ -105,6 +115,27 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
             <ClipboardList className="h-4 w-4 mr-0 sm:mr-1" />
             <span className="ml-1 text-[10px] sm:text-sm">TODO</span>
           </Button>
+
+          {/* ソートボタン（フィルター有効時のみ表示） */}
+          {(currentFilter === 'urgent' || currentFilter === 'todo') && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="p-0 min-[375px]:px-2 min-[375px]:py-1 sm:px-3 sm:py-1.5 text-slate-600 hover:text-slate-700 hover:bg-slate-50 font-semibold transition-all"
+              title={currentSort === 'asc' ? '新しい順にする' : '古い順にする'}
+              onClick={toggleSort}
+            >
+              {currentSort === 'asc' ? (
+                <>
+                  <ArrowDownWideNarrow className="h-4 w-4" />
+                </>
+              ) : (
+                <>
+                  <ArrowUpNarrowWide className="h-4 w-4" />
+                </>
+              )}
+            </Button>
+          )}
         </div>
         {/* 右側: ポイント・設定 */}
         <div className="flex items-center gap-x-3">
