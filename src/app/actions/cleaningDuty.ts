@@ -8,6 +8,7 @@ import type { DiaryWithRelations } from '@/types/database.types';
 export type CleaningDutyAssignment = {
   duty_date: string; // YYYY-MM-DD
   staff_id: number;
+  slot: number; // 1 or 2
 };
 
 const DIARY_SELECT_WITH_RELATIONS = `
@@ -100,30 +101,42 @@ async function fetchDiaryById(diaryId: number): Promise<DiaryWithRelations | nul
 }
 
 /**
- * 指定日の掃除当番（staff_id）を取得
- * ※ CLEANING_DUTY_ASSIGNMENT テーブルが存在しない場合は null を返す
+ * 指定日の掃除当番（staff_idリスト）を取得
+ * - slot順にソートして返す
  */
-export async function getCleaningDutyAssigneeId(dutyDate: string): Promise<number | null> {
+export async function getCleaningDutyAssignees(dutyDate: string): Promise<CleaningDutyAssignment[]> {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from('CLEANING_DUTY_ASSIGNMENT')
-    .select('staff_id')
+    .select('duty_date, staff_id, slot')
     .eq('duty_date', dutyDate)
-    .maybeSingle();
+    .order('slot');
 
   if (error) {
-    // テーブルが存在しない場合（42P01）やカラムがない場合（42703）は警告のみ
     const errCode = (error as any).code;
     if (errCode === '42P01' || errCode === '42703') {
-      console.warn('CLEANING_DUTY_ASSIGNMENT table or columns not found. Cleaning duty feature disabled.');
-      return null;
+      console.warn('CLEANING_DUTY_ASSIGNMENT table or columns not found.');
+      return [];
     }
-    console.error('Error fetching cleaning duty assignee:', error);
-    return null;
+    console.error('Error fetching cleaning duty assignees:', error);
+    return [];
   }
 
-  return data?.staff_id ?? null;
+  return (data || []).map(d => ({
+    duty_date: d.duty_date,
+    staff_id: d.staff_id,
+    slot: d.slot || 1 // カラムがない場合のフォールバック
+  }));
+}
+
+/**
+ * 互換性のためのラッパー（非推奨）
+ * - 最初の担当者を返す
+ */
+export async function getCleaningDutyAssigneeId(dutyDate: string): Promise<number | null> {
+  const assignees = await getCleaningDutyAssignees(dutyDate);
+  return assignees.length > 0 ? assignees[0].staff_id : null;
 }
 
 /**
@@ -137,7 +150,7 @@ export async function getCleaningDutyAssignmentsByRange(
 
   const { data, error } = await supabase
     .from('CLEANING_DUTY_ASSIGNMENT')
-    .select('duty_date, staff_id')
+    .select('duty_date, staff_id, slot')
     .gte('duty_date', startDate)
     .lte('duty_date', endDate)
     .order('duty_date');
@@ -147,7 +160,10 @@ export async function getCleaningDutyAssignmentsByRange(
     return [];
   }
 
-  return (data || []) as CleaningDutyAssignment[];
+  return (data || []).map(d => ({
+    ...d,
+    slot: d.slot || 1 // フォールバック
+  })) as CleaningDutyAssignment[];
 }
 
 /**
@@ -161,11 +177,12 @@ export async function upsertCleaningDutyAssignments(params: {
   startDate: string; // YYYY-MM-DD
   endDate: string; // YYYY-MM-DD
   weekDays: number[]; // 0=日 ... 6=土
+  slot?: number; // 1 or 2 (default: 1)
 }) {
   const currentStaff = await getCurrentStaff();
   if (!currentStaff) return { success: false, error: 'ログインが必要です' };
 
-  const { staffId, startDate, endDate, weekDays } = params;
+  const { staffId, startDate, endDate, weekDays, slot = 1 } = params;
 
   if (!startDate || !endDate) {
     return { success: false, error: '入力が不足しています' };
@@ -205,7 +222,8 @@ export async function upsertCleaningDutyAssignments(params: {
     const { error } = await supabase
       .from('CLEANING_DUTY_ASSIGNMENT')
       .delete()
-      .in('duty_date', targetDates);
+      .in('duty_date', targetDates)
+      .eq('slot', slot);
 
     if (error) {
       console.error('Error deleting cleaning duty assignments:', error);
@@ -219,13 +237,14 @@ export async function upsertCleaningDutyAssignments(params: {
   const rows = targetDates.map((dutyDate) => ({
     duty_date: dutyDate,
     staff_id: staffId,
+    slot: slot,
     updated_by: currentStaff.staff_id,
     updated_at: new Date().toISOString(),
   }));
 
   const { error } = await supabase
     .from('CLEANING_DUTY_ASSIGNMENT')
-    .upsert(rows, { onConflict: 'duty_date' });
+    .upsert(rows, { onConflict: 'duty_date, slot' });
 
   if (error) {
     console.error('Error upserting cleaning duty assignments:', error);
@@ -239,7 +258,7 @@ export async function upsertCleaningDutyAssignments(params: {
  * 特定日の掃除当番を設定（単日）
  * - 一般ユーザーも編集可能
  */
-export async function setCleaningDutyAssignmentForDate(dutyDate: string, staffId: number) {
+export async function setCleaningDutyAssignmentForDate(dutyDate: string, staffId: number, slot: number = 1) {
   const currentStaff = await getCurrentStaff();
   if (!currentStaff) return { success: false, error: 'ログインが必要です' };
 
@@ -251,10 +270,11 @@ export async function setCleaningDutyAssignmentForDate(dutyDate: string, staffId
       {
         duty_date: dutyDate,
         staff_id: staffId,
+        slot: slot,
         updated_by: currentStaff.staff_id,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: 'duty_date' }
+      { onConflict: 'duty_date, slot' }
     );
 
   if (error) {
@@ -269,7 +289,7 @@ export async function setCleaningDutyAssignmentForDate(dutyDate: string, staffId
  * 特定日の掃除当番を解除（単日）
  * - 一般ユーザーも編集可能
  */
-export async function deleteCleaningDutyAssignmentForDate(dutyDate: string) {
+export async function deleteCleaningDutyAssignmentForDate(dutyDate: string, slot: number = 1) {
   const currentStaff = await getCurrentStaff();
   if (!currentStaff) return { success: false, error: 'ログインが必要です' };
 
@@ -278,7 +298,8 @@ export async function deleteCleaningDutyAssignmentForDate(dutyDate: string) {
   const { error } = await supabase
     .from('CLEANING_DUTY_ASSIGNMENT')
     .delete()
-    .eq('duty_date', dutyDate);
+    .eq('duty_date', dutyDate)
+    .eq('slot', slot);
 
   if (error) {
     console.error('Error deleting cleaning duty assignment:', error);
@@ -296,8 +317,12 @@ export async function deleteCleaningDutyAssignmentForDate(dutyDate: string) {
  * ※ DBに diary_type / target_staff_id カラムが未導入の場合は null を返す
  */
 export async function getOrCreateCleaningDutyDiary(dutyDate: string): Promise<DiaryWithRelations | null> {
-  const assigneeId = await getCleaningDutyAssigneeId(dutyDate);
-  if (!assigneeId) return null;
+  const assignees = await getCleaningDutyAssignees(dutyDate);
+  if (assignees.length === 0) return null;
+
+  // 代表者（slot=1）
+  const primaryAssignee = assignees.find(a => a.slot === 1) || assignees[0];
+  const assigneeId = primaryAssignee.staff_id;
 
   const supabase = await createClient();
 
@@ -324,19 +349,45 @@ export async function getOrCreateCleaningDutyDiary(dutyDate: string): Promise<Di
     return null;
   }
 
+  // 当番者の名前を取得してメンションに使用（全員分）
+  const { data: staffData } = await supabase
+    .from('STAFF')
+    .select('staff_id, name')
+    .in('staff_id', assignees.map(a => a.staff_id));
+  
+  const staffMap = new Map(staffData?.map(s => [s.staff_id, s.name]));
+  const mentionText = assignees
+    .map(a => staffMap.get(a.staff_id))
+    .filter(Boolean)
+    .map(name => `@${name}`)
+    .join(' ');
+
+  const content = `${mentionText} 本日の掃除当番です。完了したら「解決済み」を押してください。`;
+
   if (existing) {
     const currentTarget = (existing as any).target_staff_id as number | null | undefined;
-    if (currentTarget !== assigneeId) {
+    // target_staff_idが代表者と異なる場合、または本文（メンション）を更新したい場合
+    // ただし本文更新は既存のやりとりを消してしまう可能性があるので慎重に。
+    // ここではシンプルにtarget_staff_idだけ更新するが、メンションが変わった場合に本文も更新するか検討が必要。
+    // ユーザー要望「2人にメンションするように」→ 本文更新が必要。
+    // ただし、既に誰かがコメントしている場合に本文を変えていいか？ -> 今回は変える。
+    
+    // Note: 内容が変わっていたら更新
+    const currentContent = existing.content;
+    const contentChanged = !currentContent.startsWith(mentionText); // 簡易チェック
+
+    if (currentTarget !== assigneeId || contentChanged) {
       const { error: updateError } = await supabase
         .from('DIARY')
         .update({
           target_staff_id: assigneeId,
+          content: content, // メンション更新
           updated_at: new Date().toISOString(),
         })
         .eq('diary_id', (existing as any).diary_id);
 
       if (updateError) {
-        console.error('Error updating cleaning duty diary target_staff_id:', updateError);
+        console.error('Error updating cleaning duty diary:', updateError);
       } else {
         const refetched = await fetchDiaryById((existing as any).diary_id);
         return refetched;
@@ -352,23 +403,13 @@ export async function getOrCreateCleaningDutyDiary(dutyDate: string): Promise<Di
     return null;
   }
 
-  // 当番者の名前を取得してメンションに使用
-  const { data: assignee } = await supabase
-    .from('STAFF')
-    .select('name')
-    .eq('staff_id', assigneeId)
-    .single();
-  
-  const assigneeName = assignee?.name || '';
-  const mentionText = assigneeName ? `@${assigneeName} ` : '';
-
   const { data: created, error: createError } = await supabase
     .from('DIARY')
     .insert({
       category_id: categoryId,
       staff_id: assigneeId,
       title: '本日の掃除当番はあなたです',
-      content: `${mentionText}本日の掃除当番です。完了したら「解決済み」を押してください。`,
+      content: content,
       target_date: dutyDate,
       is_urgent: false,
       bounty_points: null,
@@ -401,9 +442,12 @@ export async function getOrCreateCleaningDutyDiary(dutyDate: string): Promise<Di
  * 自分が当番の日のみ、掃除当番DIARYを返す（当番でなければnull）
  */
 export async function getCleaningDutyDiaryForStaff(dutyDate: string, staffId: number): Promise<DiaryWithRelations | null> {
-  const assigneeId = await getCleaningDutyAssigneeId(dutyDate);
-  if (!assigneeId) return null;
-  if (assigneeId !== staffId) return null;
+  const assignees = await getCleaningDutyAssignees(dutyDate);
+  if (assignees.length === 0) return null;
+  
+  // 自分が担当者に含まれているかチェック
+  const isAssigned = assignees.some(a => a.staff_id === staffId);
+  if (!isAssigned) return null;
 
   return await getOrCreateCleaningDutyDiary(dutyDate);
 }
