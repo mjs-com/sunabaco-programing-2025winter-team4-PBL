@@ -135,12 +135,39 @@ export interface Diary {
   current_status: DiaryStatus;
   diary_type?: DiaryType; // 日報種別（追加）
   target_staff_id?: number | null; // 宛先（NULL=全体公開）
+  recurring_id?: number | null; // 繰り返し設定ID
   created_at: string;
   updated_at: string;
   updated_by?: number | null; // 編集者
   deadline?: string | null; // 期限
   solved_by?: number | null; // 解決者
   solved_at?: string | null; // 解決日時
+}
+
+// ==========================================
+// 繰り返し設定型
+// ==========================================
+
+export interface RecurringSetting {
+  id: number;
+  staff_id: number;
+  title: string;
+  content: string | null;
+  category_id: number | null;
+  is_urgent: boolean;
+  bounty_points: number | null;
+  deadline_interval: number | null;
+  recurrence_type: string;
+  recurrence_config: any;
+  start_date: string;
+  end_date: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurringSettingWithRelations extends RecurringSetting {
+  category?: Category;
 }
 
 // リレーション込みの日報型

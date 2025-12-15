@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
-import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy, Calendar, Settings2, ArrowUpNarrowWide, ArrowDownWideNarrow, Download } from 'lucide-react';
+import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy, Calendar, Settings2, ArrowUpNarrowWide, ArrowDownWideNarrow, Download, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -208,6 +208,15 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
                   >
                     <Settings2 className="h-4 w-4" />
                     <span>カテゴリー設定</span>
+                  </Link>
+
+                  <Link
+                    href="/settings/recurrence"
+                    className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    <span>繰り返し投稿の管理</span>
                   </Link>
 
                   {isAdmin && (

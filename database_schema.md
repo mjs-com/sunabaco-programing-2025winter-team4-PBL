@@ -39,6 +39,7 @@ erDiagram
         date deadline "期限日（任意）"
         string diary_type "NORMAL/CLEANING_DUTY"
         int target_staff_id FK "宛先（NULL=全体公開）"
+        bigint recurring_id FK "繰り返し設定ID"
         
         boolean is_urgent
         int bounty_points "特別報酬ポイント"
@@ -113,6 +114,25 @@ erDiagram
         int tag_id FK
     }
 
+    %% 繰り返し投稿設定
+    RECURRING_SETTINGS {
+        bigint id PK
+        int staff_id FK "作成者"
+        string title
+        string content
+        int category_id FK
+        boolean is_urgent
+        int bounty_points
+        int deadline_interval "期限までの日数"
+        string recurrence_type "daily/weekly/monthly/yearly/custom"
+        jsonb recurrence_config "詳しい設定内容"
+        date start_date
+        date end_date
+        boolean is_active
+        datetime created_at
+        datetime updated_at
+    }
+
     %% リレーション
     JOB_TYPE ||--o{ STAFF : belongs_to
     SYSTEM_ROLE ||--o{ STAFF : has
@@ -130,3 +150,6 @@ erDiagram
     DIARY ||--o{ ACTION_LOG : receives
     STAFF ||--o{ POINT_LOG : earns
     STAFF ||--o{ CLEANING_DUTY_ASSIGNMENT : assigned
+    STAFF ||--o{ RECURRING_SETTINGS : creates
+    RECURRING_SETTINGS ||--o{ DIARY : generates
+    CATEGORY ||--o{ RECURRING_SETTINGS : category
