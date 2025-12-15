@@ -44,6 +44,8 @@ export interface Staff {
   job_type_id: number;
   system_role_id: number;
   is_active: boolean;
+  is_hidden: boolean; // 非表示フラグ（産休などで一時的に非表示）
+  is_deleted: boolean; // 削除フラグ（退職などで完全に削除、ただしデータは保持）
   current_points: number;
   personal_color?: string | null; // パーソナルカラー（カレンダー表示用）
   created_at: string;
@@ -76,6 +78,8 @@ export interface CurrentStaffInfo {
   job_type_id: number;
   system_role_id: number;
   is_active: boolean;
+  is_hidden: boolean;
+  is_deleted: boolean;
   current_points: number;
   personal_color?: string | null;
   created_at: string;

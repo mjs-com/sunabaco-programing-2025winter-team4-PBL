@@ -9,7 +9,10 @@ erDiagram
         string password_hash
         string email
         boolean is_active
+        boolean is_hidden "非表示フラグ（産休などで一時的に非表示）"
+        boolean is_deleted "削除フラグ（退職などで完全に削除、ただしデータは保持）"
         int current_points "キャッシュ用"
+        string personal_color "パーソナルカラー（掃除当番カレンダー表示用）"
         datetime created_at
         datetime updated_at
     }
@@ -51,9 +54,10 @@ erDiagram
         datetime updated_at
     }
 
-    %% 掃除当番（1日=1人の割当）
+    %% 掃除当番（1日=最大2人の割当）
     CLEANING_DUTY_ASSIGNMENT {
-        date duty_date PK
+        date duty_date PK "複合主キー（duty_date, slot）"
+        int slot PK "スロット番号（1 or 2）"
         int staff_id FK "当番者"
         int created_by FK
         int updated_by FK

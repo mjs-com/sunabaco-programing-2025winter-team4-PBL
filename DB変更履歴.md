@@ -111,3 +111,32 @@ CREATE UNIQUE INDEX IF NOT EXISTS "diary_cleaning_duty_unique"
 - `diary_type`のデフォルト値は`'NORMAL'`（既存レコードは自動的に`'NORMAL'`になる）
 - `target_staff_id`がNULLの場合は全体公開（従来通りの動作）
 - 掃除当番機能を使用しない場合は、これらのカラム/テーブルは未適用でもアプリは動作します（コード側でエラーハンドリング済み）
+
+## 2025-12-15 - STAFFテーブルに非表示・削除フラグ追加
+
+**変更日時**: 2025-12-15  
+**変更内容**: ユーザー管理機能のため、STAFFテーブルに`is_hidden`と`is_deleted`カラムを追加
+
+**SQL文**:
+```sql
+-- 非表示フラグ（産休などで一時的に非表示にする場合）
+ALTER TABLE "STAFF" ADD COLUMN IF NOT EXISTS "is_hidden" boolean DEFAULT false NOT NULL;
+
+-- 削除フラグ（退職などで完全に削除する場合、ただしデータは保持）
+ALTER TABLE "STAFF" ADD COLUMN IF NOT EXISTS "is_deleted" boolean DEFAULT false NOT NULL;
+```
+
+**変更理由**:
+- `is_hidden`: 産休などで一時的に休職するユーザーを非表示にする（メンションやバッチの宛先から除外、ただしユーザー管理画面には表示）
+- `is_deleted`: 退職などで今後復帰の見込みがないユーザーを削除する（ユーザー管理画面にも表示されない、ただし過去記事では名前が表示される）
+
+**影響範囲**:
+- `STAFF`テーブル（新カラム追加）
+- メンション機能（`getActiveStaff()`で`is_hidden=false`かつ`is_deleted=false`のみ取得）
+- 確認済み・解決済みバッチ（非表示ユーザーは除外）
+- ユーザー管理画面（全スタッフ一覧、非表示/削除の切り替え機能）
+
+**注意事項**:
+- 既存のレコードでは新カラムは`false`になります
+- `is_deleted=true`のユーザーは過去記事では名前が表示されます（JOINで取得するため）
+- `is_hidden=true`のユーザーはユーザー管理画面には表示されますが、メンションやバッチの宛先からは除外されます

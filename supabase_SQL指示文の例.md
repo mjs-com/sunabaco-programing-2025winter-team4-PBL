@@ -59,6 +59,8 @@ CREATE TABLE "STAFF" (
     system_role_id INT NOT NULL REFERENCES "SYSTEM_ROLE"(role_id),
     
     is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    is_hidden BOOLEAN NOT NULL DEFAULT FALSE, -- 非表示フラグ（産休などで一時的に非表示）
+    is_deleted BOOLEAN NOT NULL DEFAULT FALSE, -- 削除フラグ（退職などで完全に削除、ただしデータは保持）
     current_points INT NOT NULL DEFAULT 0, -- パフォーマンス用キャッシュ（累計ポイント）
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -244,6 +246,10 @@ VALUES
 -- CREATE UNIQUE INDEX IF NOT EXISTS "diary_cleaning_duty_unique"
 --   ON "DIARY"(target_date, diary_type)
 --   WHERE diary_type = 'CLEANING_DUTY' AND parent_id IS NULL;
+
+-- STAFFテーブルに非表示・削除フラグを追加
+-- ALTER TABLE "STAFF" ADD COLUMN IF NOT EXISTS "is_hidden" boolean DEFAULT false NOT NULL;
+-- ALTER TABLE "STAFF" ADD COLUMN IF NOT EXISTS "is_deleted" boolean DEFAULT false NOT NULL;
 
 
 -- =============================================
