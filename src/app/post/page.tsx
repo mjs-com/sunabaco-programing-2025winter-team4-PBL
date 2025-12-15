@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
@@ -62,7 +62,7 @@ function SubmitButton() {
   );
 }
 
-export default function PostPage() {
+function PostPageContent() {
   const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
@@ -522,6 +522,18 @@ export default function PostPage() {
         </Card>
       </main>
     </div>
+  );
+}
+
+export default function PostPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
+      </div>
+    }>
+      <PostPageContent />
+    </Suspense>
   );
 }
 
