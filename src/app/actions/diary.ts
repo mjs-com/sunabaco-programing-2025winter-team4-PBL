@@ -661,7 +661,7 @@ function getNthWeekdayOfMonth(year: number, month: number, weekOfMonth: number, 
 }
 
 /**
- * 繰り返し日報を一括作成
+ * 繰り返し日報を一括作成（設定も保存）
  */
 export async function createRecurringDiaries(
   input: CreateDiaryInput & { staff_id: number },
@@ -678,8 +678,34 @@ export async function createRecurringDiaries(
   }
 
   const supabase = await createClient();
+  
+  // 1. 繰り返し設定を recurring_settings に保存
+  const { data: setting, error: settingError } = await supabase
+    .from('recurring_settings')
+    .insert({
+      staff_id: input.staff_id,
+      title: input.title,
+      content: input.content,
+      category_id: input.category_id,
+      is_urgent: input.is_urgent || false,
+      bounty_points: input.bounty_points || null,
+      deadline_interval: null,
+      recurrence_type: recurrence.type,
+      recurrence_config: recurrence,
+      start_date: input.target_date,
+      end_date: recurrence.endDate,
+    })
+    .select()
+    .single();
+
+  if (settingError) {
+    console.error('Error creating recurring setting:', settingError);
+    return { success: false, error: settingError.message };
+  }
+
   const results: Array<{ date: string; success: boolean; error?: string }> = [];
 
+  // 2. 日報を作成（recurring_id を付与）
   for (const date of dates) {
     const { data: diary, error: diaryError } = await supabase
       .from('DIARY')
@@ -694,6 +720,7 @@ export async function createRecurringDiaries(
         current_status: 'UNREAD',
         parent_id: null,
         deadline: input.deadline || null,
+        recurring_id: setting.id,
       })
       .select('diary_id')
       .single();
@@ -718,6 +745,7 @@ export async function createRecurringDiaries(
       total: dates.length,
       successCount,
       results,
+      settingId: setting.id,
     },
   };
 }

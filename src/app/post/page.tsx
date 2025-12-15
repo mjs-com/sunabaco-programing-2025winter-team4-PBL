@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useFormStatus } from 'react-dom';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Loader2, AlertTriangle } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
@@ -64,6 +64,7 @@ function SubmitButton() {
 
 function PostPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [categories, setCategories] = useState<Category[]>([]);
   const [jobTypes, setJobTypes] = useState<JobType[]>([]);
   const [staffList, setStaffList] = useState<StaffBasicInfo[]>([]);
@@ -86,6 +87,11 @@ function PostPageContent() {
   const [customWeeksOfMonth, setCustomWeeksOfMonth] = useState<number[]>([]);
   const [customDaysOfWeek, setCustomDaysOfWeek] = useState<number[]>([]);
 
+  // フォームの初期値
+  const [initialTitle, setInitialTitle] = useState('');
+  const [initialCategoryId, setInitialCategoryId] = useState<string>('');
+  const [initialIsUrgent, setInitialIsUrgent] = useState(false);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -101,6 +107,58 @@ function PostPageContent() {
         setCurrentStaff(staff);
         // デフォルトの終了日を1ヶ月後に設定
         setRecurrenceEndDate(toISODateString(addDays(getToday(), 30)));
+
+        // クエリパラメータから複製データを読み込む
+        const duplicate = searchParams?.get('duplicate');
+        if (duplicate === 'true') {
+          const title = searchParams.get('title') || '';
+          const contentParam = searchParams.get('content') || '';
+          const categoryId = searchParams.get('category_id') || '';
+          const isUrgent = searchParams.get('is_urgent') === 'true';
+          const recurrenceTypeParam = searchParams.get('recurrence_type') || 'daily';
+          const recurrenceConfigParam = searchParams.get('recurrence_config');
+
+          setInitialTitle(title);
+          setInitialCategoryId(categoryId);
+          setInitialIsUrgent(isUrgent);
+          setContent(contentParam);
+          setHasRecurrence(true);
+          
+          // 繰り返し設定を復元
+          if (recurrenceConfigParam) {
+            try {
+              const config = JSON.parse(recurrenceConfigParam);
+              setRecurrenceType(recurrenceTypeParam as RecurrenceType);
+              
+              // weekly の場合は weekDays を customDaysOfWeek に変換して表示
+              // （新規投稿画面ではweeklyタイプのweekDays選択UIがないため、custom_weekdayに変換）
+              if (recurrenceTypeParam === 'weekly' && config.weekDays && Array.isArray(config.weekDays) && config.weekDays.length > 0) {
+                // weeklyのweekDaysをcustomDaysOfWeekに変換
+                setCustomDaysOfWeek(config.weekDays);
+                // すべての週を選択（第1週〜第5週）
+                setCustomWeeksOfMonth([1, 2, 3, 4, 5]);
+                // custom_weekdayタイプに変更
+                setRecurrenceType('custom_weekday');
+              }
+              
+              // カスタム設定の復元
+              if (config.customInterval) {
+                setCustomInterval(config.customInterval);
+              }
+              if (config.customIntervalUnit) {
+                setCustomIntervalUnit(config.customIntervalUnit);
+              }
+              if (config.customWeeksOfMonth) {
+                setCustomWeeksOfMonth(config.customWeeksOfMonth);
+              }
+              if (config.customDaysOfWeek && recurrenceTypeParam !== 'weekly') {
+                setCustomDaysOfWeek(config.customDaysOfWeek);
+              }
+            } catch (e) {
+              console.error('Error parsing recurrence config:', e);
+            }
+          }
+        }
       } catch (e) {
         console.error('Error loading data:', e);
       } finally {
@@ -108,7 +166,24 @@ function PostPageContent() {
       }
     }
     loadData();
-  }, []);
+  }, [searchParams]);
+
+  // weeklyタイプの場合、weekDaysをcustomDaysOfWeekに変換して表示
+  useEffect(() => {
+    const recurrenceConfigParam = searchParams?.get('recurrence_config');
+    if (recurrenceConfigParam && recurrenceType === 'weekly') {
+      try {
+        const config = JSON.parse(recurrenceConfigParam);
+        if (config.weekDays && Array.isArray(config.weekDays) && config.weekDays.length > 0) {
+          // weeklyのweekDaysをcustomDaysOfWeekに変換（新規投稿画面ではweeklyタイプのweekDays選択UIがないため）
+          // ただし、新規投稿画面ではweeklyタイプのweekDays選択UIがないため、この処理は不要
+          // 複製時はweeklyタイプのまま維持する
+        }
+      } catch (e) {
+        console.error('Error parsing recurrence config:', e);
+      }
+    }
+  }, [recurrenceType, searchParams]);
 
   const toggleCustomWeekOfMonth = (week: number) => {
     setCustomWeeksOfMonth((prev) => {
@@ -152,6 +227,9 @@ function PostPageContent() {
       const recurrence = {
         type: mappedType as 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom',
         endDate: recurrenceEndDate,
+        // weekly 用（新規投稿画面ではweeklyタイプのweekDays選択UIがないため、空配列を設定）
+        // ただし、custom_weekdayに変換された場合はweekDaysは設定しない
+        weekDays: (recurrenceType === 'weekly' && mappedType === 'weekly') ? [] : undefined,
         // カスタム（日付）用
         customInterval: recurrenceType === 'custom_date' ? customInterval : undefined,
         customIntervalUnit: recurrenceType === 'custom_date' ? customIntervalUnit : undefined,
@@ -223,7 +301,7 @@ function PostPageContent() {
                 <label htmlFor="category_id" className="text-sm font-medium text-slate-700">
                   カテゴリ <span className="text-red-500">*</span>
                 </label>
-                <Select id="category_id" name="category_id" required>
+                <Select id="category_id" name="category_id" required defaultValue={initialCategoryId}>
                   <option value="">選択してください</option>
                   {categories.map((cat) => (
                     <option key={cat.category_id} value={cat.category_id}>
@@ -462,6 +540,7 @@ function PostPageContent() {
                   placeholder="日報のタイトルを入力"
                   required
                   maxLength={100}
+                  defaultValue={initialTitle}
                 />
               </div>
 
@@ -506,7 +585,7 @@ function PostPageContent() {
                     </p>
                   </div>
                 </div>
-                <Switch id="is_urgent" name="is_urgent" />
+                <Switch id="is_urgent" name="is_urgent" defaultChecked={initialIsUrgent} />
               </div>
             </CardContent>
 
