@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, Suspense } from 'react';
-import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy, Calendar, Settings2, ArrowUpNarrowWide, ArrowDownWideNarrow } from 'lucide-react';
+import { Heart, Settings, AlertTriangle, ClipboardList, LogOut, Users, User, Trophy, Calendar, Settings2, ArrowUpNarrowWide, ArrowDownWideNarrow, Download } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
@@ -211,14 +211,24 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
                   </Link>
 
                   {isAdmin && (
-                    <Link
-                      href="/admin"
-                      className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                      onClick={() => setIsMenuOpen(false)}
-                    >
-                      <Users className="h-4 w-4" />
-                      <span>ユーザー管理画面</span>
-                    </Link>
+                    <>
+                      <Link
+                        href="/admin"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <Users className="h-4 w-4" />
+                        <span>ユーザー管理画面</span>
+                      </Link>
+                      <Link
+                        href="/admin/export"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>過去の記事を出力</span>
+                      </Link>
+                    </>
                   )}
 
                   <div className="border-t border-slate-100 mt-1 pt-1">
