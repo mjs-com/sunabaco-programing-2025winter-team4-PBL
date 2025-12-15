@@ -218,7 +218,15 @@ function HeaderContent({ currentPoints = 0, userName, systemRoleId }: HeaderProp
                         onClick={() => setIsMenuOpen(false)}
                       >
                         <Users className="h-4 w-4" />
-                        <span>ユーザー管理画面</span>
+                        <span>スタッフ承認</span>
+                      </Link>
+                      <Link
+                        href="/admin/users"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                        onClick={() => setIsMenuOpen(false)}
+                      >
+                        <Users className="h-4 w-4" />
+                        <span>ユーザー管理</span>
                       </Link>
                       <Link
                         href="/admin/export"

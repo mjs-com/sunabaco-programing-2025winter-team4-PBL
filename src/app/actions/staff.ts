@@ -23,6 +23,8 @@ export async function getActiveStaff(): Promise<StaffBasicInfo[]> {
       )
     `)
     .eq('is_active', true)
+    .eq('is_hidden', false) // 非表示ユーザーを除外
+    .eq('is_deleted', false) // 削除ユーザーを除外
     .order('name');
 
   if (error) {
