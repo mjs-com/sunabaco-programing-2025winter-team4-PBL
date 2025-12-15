@@ -124,7 +124,7 @@ export async function getDiariesForExport(
     // 正規表現で@の後に続く文字列を抽出（スペース、改行、@以外の文字まで）
     // 大文字小文字を区別しない（iフラグ）
     const mentionPattern = /@([^\s@\n]+)/gi;
-    const matches = content.matchAll(mentionPattern);
+    const matches = Array.from(content.matchAll(mentionPattern));
     const foundMentions = new Set<string>();
     
     for (const match of matches) {
