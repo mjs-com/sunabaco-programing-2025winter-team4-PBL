@@ -7,6 +7,14 @@ import { formatDate, formatTime } from '@/lib/utils';
 import { ArrowUp, ArrowDown, Heart, Calendar, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// ステータスタグを日本語に置き換える関数
+function replaceStatusTags(text: string): string {
+  return text
+    .replace(/CONFIRMED/g, '🔍 確認した')
+    .replace(/WORKING/g, '🛠️ 作業中')
+    .replace(/SOLVED/g, '✅ 解決済み');
+}
+
 export default async function PointsPage() {
   const currentStaff = await getCurrentStaff();
 
@@ -21,11 +29,11 @@ export default async function PointsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      <Header 
+      <Header
         currentPoints={monthlyPoints}
         systemRoleId={currentStaff.system_role_id}
       />
-      
+
       <main className="container mx-auto px-4 py-6 space-y-6">
         {/* ポイント表示（今月と累計） */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -71,7 +79,7 @@ export default async function PointsPage() {
               あなたのポイント獲得履歴
             </p>
           </CardHeader>
-          
+
           <CardContent>
             {pointHistory.length === 0 ? (
               <div className="text-center py-12 text-slate-500">
@@ -95,7 +103,9 @@ export default async function PointsPage() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-slate-800">{log.reason}</p>
+                        <p className="font-medium text-slate-800">
+                          {replaceStatusTags(log.reason)}
+                        </p>
                         <p className="text-xs text-slate-500">
                           {formatDate(log.created_at)} {formatTime(log.created_at)}
                         </p>
@@ -119,4 +129,3 @@ export default async function PointsPage() {
     </div>
   );
 }
-
