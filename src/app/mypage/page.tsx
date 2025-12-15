@@ -5,23 +5,12 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { User, Heart, Mail, Briefcase, Shield, Calendar, TrendingUp, TrendingDown, Edit2, Save, X, Lock, Trophy, Palette, RefreshCw } from 'lucide-react';
 import { getCurrentStaff } from '@/app/actions/diary';
 import { getPointHistory, getMonthlyPoints } from '@/app/actions/points';
-import { updateProfile, updatePassword, updateStaffByAdmin, getJobTypesForProfile, getSystemRoles, updatePersonalColor } from '@/app/actions/profile';
+import { updateProfile, updatePassword, updatePersonalColor } from '@/app/actions/profile';
 import { formatDate, formatTime, generateRandomPersonalColor, colorToHex } from '@/lib/utils';
 import type { PointLog } from '@/types/database.types';
-
-interface JobType {
-  job_type_id: number;
-  job_name: string;
-}
-
-interface SystemRole {
-  system_role_id: number;
-  role_name: string;
-}
 
 interface StaffProfile {
   staff_id: number;
@@ -44,15 +33,12 @@ export default function MyPage() {
   const [profile, setProfile] = useState<StaffProfile | null>(null);
   const [pointHistory, setPointHistory] = useState<PointLog[]>([]);
   const [monthlyPoints, setMonthlyPoints] = useState<number>(0);
-  const [jobTypes, setJobTypes] = useState<JobType[]>([]);
-  const [systemRoles, setSystemRoles] = useState<SystemRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
 
   // 編集モード
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [isEditingPassword, setIsEditingPassword] = useState(false);
-  const [isEditingAdmin, setIsEditingAdmin] = useState(false);
   const [isEditingColor, setIsEditingColor] = useState(false);
 
   // 編集フォームの値
@@ -60,8 +46,6 @@ export default function MyPage() {
   const [editEmail, setEditEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [editJobTypeId, setEditJobTypeId] = useState<number>(0);
-  const [editSystemRoleId, setEditSystemRoleId] = useState<number>(0);
   const [editPersonalColor, setEditPersonalColor] = useState<string>('');
 
   // エラー・メッセージ
@@ -78,8 +62,6 @@ export default function MyPage() {
           setProfile(staff as StaffProfile);
           setEditName(staff.name);
           setEditEmail(staff.email);
-          setEditJobTypeId(staff.job_type_id);
-          setEditSystemRoleId(staff.system_role_id);
           setEditPersonalColor(staff.personal_color || '');
           
           const [history, monthly] = await Promise.all([
@@ -90,12 +72,6 @@ export default function MyPage() {
           setMonthlyPoints(monthly);
         }
         
-        const [jt, sr] = await Promise.all([
-          getJobTypesForProfile(),
-          getSystemRoles(),
-        ]);
-        setJobTypes(jt);
-        setSystemRoles(sr);
       } catch (error) {
         console.error('Error loading profile:', error);
       } finally {
@@ -158,31 +134,6 @@ export default function MyPage() {
     });
   };
 
-  const handleSaveAdminSettings = () => {
-    if (!profile) return;
-    setError(null);
-    setSuccess(null);
-
-    startTransition(async () => {
-      const result = await updateStaffByAdmin(profile.staff_id, {
-        staff_id: profile.staff_id,
-        job_type_id: editJobTypeId,
-        system_role_id: editSystemRoleId,
-      });
-
-      if (result.success) {
-        setSuccess('設定を更新しました');
-        setIsEditingAdmin(false);
-        // プロフィールを再読み込み
-        const staff = await getCurrentStaff();
-        if (staff) {
-          setProfile(staff as StaffProfile);
-        }
-      } else {
-        setError(result.error || '更新に失敗しました');
-      }
-    });
-  };
 
   const handleSavePersonalColor = () => {
     if (!profile) return;
@@ -216,15 +167,12 @@ export default function MyPage() {
     if (profile) {
       setEditName(profile.name);
       setEditEmail(profile.email);
-      setEditJobTypeId(profile.job_type_id);
-      setEditSystemRoleId(profile.system_role_id);
       setEditPersonalColor(profile.personal_color || '');
     }
     setNewPassword('');
     setConfirmPassword('');
     setIsEditingProfile(false);
     setIsEditingPassword(false);
-    setIsEditingAdmin(false);
     setIsEditingColor(false);
     setError(null);
   };
@@ -509,77 +457,6 @@ export default function MyPage() {
             )}
           </CardContent>
         </Card>
-
-        {/* 管理者設定カード（管理者のみ表示） */}
-        {isAdmin && (
-          <Card>
-            <CardHeader className="border-b border-slate-200 bg-amber-50">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-amber-800 flex items-center gap-2">
-                  <Shield className="h-5 w-5" />
-                  管理者設定
-                </h3>
-                {!isEditingAdmin && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditingAdmin(true)}
-                  >
-                    <Edit2 className="h-4 w-4 mr-1" />
-                    編集
-                  </Button>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="py-4">
-              {isEditingAdmin ? (
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">職種</label>
-                    <Select
-                      value={editJobTypeId}
-                      onChange={(e) => setEditJobTypeId(Number(e.target.value))}
-                    >
-                      {jobTypes.map(jt => (
-                        <option key={jt.job_type_id} value={jt.job_type_id}>
-                          {jt.job_name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-700">システムロール</label>
-                    <Select
-                      value={editSystemRoleId}
-                      onChange={(e) => setEditSystemRoleId(Number(e.target.value))}
-                    >
-                      {systemRoles.map(sr => (
-                        <option key={sr.system_role_id} value={sr.system_role_id}>
-                          {sr.role_name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={cancelEdit} disabled={isPending}>
-                      <X className="h-4 w-4 mr-1" />
-                      キャンセル
-                    </Button>
-                    <Button onClick={handleSaveAdminSettings} disabled={isPending}>
-                      <Save className="h-4 w-4 mr-1" />
-                      {isPending ? '保存中...' : '保存'}
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-sm text-slate-600">
-                  <p>職種や管理者権限を変更できます。</p>
-                  <p className="text-amber-600 mt-2">※ この設定は管理者のみ変更可能です。</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         {/* ポイントカード */}
         <Card>
