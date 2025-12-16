@@ -322,7 +322,7 @@
 'use client';
 
 import React, { useState, useTransition, useEffect } from 'react';
-import { X, Edit2, Trash2, AlertTriangle } from 'lucide-react';
+import { X, Edit2, Trash2, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
@@ -330,7 +330,7 @@ import { Switch } from '@/components/ui/Switch';
 import { CategoryBadge } from './CategoryBadge';
 import { UserInitial } from './UserInitial';
 import { formatTime, formatDate } from '@/lib/utils';
-import { updateDiary, deleteDiary, getJobTypes } from '@/app/actions/diary';
+import { updateDiary, deleteDiary, getJobTypes, deleteRecurringDiary, checkIfRecurringDiary } from '@/app/actions/diary';
 import { getActiveStaff } from '@/app/actions/staff';
 import { MentionInput } from './MentionInput';
 import type {
@@ -365,6 +365,10 @@ export const DiaryDetailModal = React.memo(function DiaryDetailModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  
+  // 繰り返し投稿削除用の状態
+  const [showDeleteOptions, setShowDeleteOptions] = useState(false);
+  const [isRecurring, setIsRecurring] = useState(false);
 
   const [loadedStaffList, setLoadedStaffList] =
     useState<StaffBasicInfo[]>(staffList);
@@ -382,7 +386,11 @@ export const DiaryDetailModal = React.memo(function DiaryDetailModal({
     if (loadedJobTypes.length === 0) {
       getJobTypes().then(setLoadedJobTypes).catch(console.error);
     }
-  }, [loadedStaffList.length, loadedJobTypes.length]);
+    // 繰り返し投稿かどうかをチェック
+    checkIfRecurringDiary(diary.diary_id).then(result => {
+      setIsRecurring(result.isRecurring);
+    }).catch(console.error);
+  }, [loadedStaffList.length, loadedJobTypes.length, diary.diary_id]);
 
   const [editForm, setEditForm] = useState({
     title: diary.title,
@@ -411,12 +419,48 @@ export const DiaryDetailModal = React.memo(function DiaryDetailModal({
 
   const handleDelete = () => {
     if (!currentUserId) return;
+    
+    // 繰り返し投稿の場合は選択肢を表示
+    if (isRecurring) {
+      setShowDeleteOptions(true);
+      return;
+    }
+    
+    // 通常の投稿の場合は確認ダイアログを表示
     if (!confirm('本当にこの日報を削除しますか？')) return;
 
     setIsDeleting(true);
 
     startTransition(async () => {
       const result = await deleteDiary(diary.diary_id, currentUserId);
+      if (result.success) {
+        onClose();
+        onUpdate?.();
+      } else {
+        setError(result.error || '削除に失敗しました');
+        setIsDeleting(false);
+      }
+    });
+  };
+
+  // 繰り返し投稿の削除（選択肢あり）
+  const handleDeleteRecurring = (mode: 'single' | 'future') => {
+    if (!currentUserId) return;
+    
+    const confirmMessage = mode === 'single' 
+      ? 'この記事のみを削除しますか？' 
+      : 'この記事以降のすべての繰り返し投稿を削除しますか？\n※未読のもののみが対象です';
+    
+    if (!confirm(confirmMessage)) {
+      setShowDeleteOptions(false);
+      return;
+    }
+
+    setIsDeleting(true);
+    setShowDeleteOptions(false);
+
+    startTransition(async () => {
+      const result = await deleteRecurringDiary(diary.diary_id, currentUserId, mode);
       if (result.success) {
         onClose();
         onUpdate?.();
@@ -444,6 +488,51 @@ export const DiaryDetailModal = React.memo(function DiaryDetailModal({
         </div>
 
         <div className="p-4 space-y-4">
+          {/* 繰り返し投稿削除の選択肢 */}
+          {showDeleteOptions && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+              <div className="flex items-center gap-2 text-red-600 font-medium">
+                <RefreshCw className="h-4 w-4" />
+                繰り返し投稿の削除
+              </div>
+              <p className="text-sm text-slate-600">
+                この記事は繰り返し投稿です。削除方法を選択してください。
+              </p>
+              <div className="flex flex-col gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeleteRecurring('single')}
+                  disabled={isDeleting}
+                  className="justify-start text-slate-700 border-slate-300 hover:bg-slate-100"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  この記事のみ削除
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleDeleteRecurring('future')}
+                  disabled={isDeleting}
+                  className="justify-start text-red-600 border-red-300 hover:bg-red-100"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  この記事以降すべて削除（未読のみ）
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowDeleteOptions(false)}
+                  disabled={isDeleting}
+                  className="justify-start text-slate-500"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  キャンセル
+                </Button>
+              </div>
+            </div>
+          )}
+          
           {isEditing ? (
             <>
               <Input

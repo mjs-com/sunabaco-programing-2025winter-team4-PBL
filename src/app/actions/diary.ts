@@ -374,6 +374,42 @@ export async function getAllUnsolvedDiaries(
 
   let diaries = data || [];
 
+  // 繰り返し投稿の重複排除
+  // recurring_id が同じもののうち、target_date が今日に最も近いものだけを残す
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const uniqueDiaries = diaries.reduce((acc, diary) => {
+    if (!diary.recurring_id) {
+      // 繰り返しでない日報はそのまま追加
+      acc.push(diary);
+    } else {
+      // 同じ recurring_id がすでにあるかチェック
+      const existingIndex = acc.findIndex(d => d.recurring_id === diary.recurring_id);
+      if (existingIndex === -1) {
+        // なければ追加
+        acc.push(diary);
+      } else {
+        // あれば、より日付が今日に近いものを残す
+        const existing = acc[existingIndex];
+        const existingDate = new Date(existing.target_date);
+        existingDate.setHours(0, 0, 0, 0);
+        const currentDate = new Date(diary.target_date);
+        currentDate.setHours(0, 0, 0, 0);
+        
+        const existingDiff = Math.abs(existingDate.getTime() - today.getTime());
+        const currentDiff = Math.abs(currentDate.getTime() - today.getTime());
+        
+        if (currentDiff < existingDiff) {
+          acc[existingIndex] = diary;
+        }
+      }
+    }
+    return acc;
+  }, [] as DiaryWithRelations[]);
+  
+  diaries = uniqueDiaries;
+
   // 返信を日付順にソート
   diaries.forEach(diary => {
     if (diary.replies) {
@@ -523,7 +559,10 @@ function generateRecurringDates(startDate: string, config: RecurrenceConfig): st
     }
 
     case 'weekly': {
-      const weekDays = config.weekDays || [start.getDay()];
+      // weekDaysが空配列または未定義の場合は開始日の曜日をデフォルトとして使用
+      const weekDays = (config.weekDays && config.weekDays.length > 0) 
+        ? config.weekDays 
+        : [start.getDay()];
       let current = new Date(start);
       while (current <= end && dates.length < MAX_DATES) {
         if (weekDays.includes(current.getDay())) {
@@ -1124,5 +1163,97 @@ export async function deleteDiary(diaryId: number, staffId: number) {
 
   revalidatePath('/');
   return { success: true };
+}
+
+/**
+ * 繰り返し投稿を削除（選択肢あり）
+ * @param diaryId 削除対象の日報ID
+ * @param staffId 削除操作を行うスタッフID
+ * @param mode 'single' = この記事のみ削除, 'future' = この記事以降すべて削除
+ */
+export async function deleteRecurringDiary(
+  diaryId: number,
+  staffId: number,
+  mode: 'single' | 'future'
+) {
+  const supabase = await createClient();
+
+  // 現在のユーザーが管理者かチェック
+  const currentStaff = await getCurrentStaff();
+  const isAdmin = currentStaff?.system_role_id === 1;
+
+  // 対象の日報を取得
+  const { data: diary } = await supabase
+    .from('DIARY')
+    .select('staff_id, recurring_id, target_date')
+    .eq('diary_id', diaryId)
+    .single();
+
+  if (!diary) {
+    return { success: false, error: '日報が見つかりません' };
+  }
+
+  // 投稿者または管理者のみ削除可能
+  if (diary.staff_id !== staffId && !isAdmin) {
+    return { success: false, error: '削除権限がありません' };
+  }
+
+  if (mode === 'single') {
+    // この記事のみ削除
+    const { error } = await supabase
+      .from('DIARY')
+      .update({ is_deleted: true, updated_at: new Date().toISOString() })
+      .eq('diary_id', diaryId);
+
+    if (error) {
+      console.error('Error deleting diary:', error);
+      return { success: false, error: error.message };
+    }
+  } else if (mode === 'future' && diary.recurring_id) {
+    // この記事以降すべての繰り返し投稿を削除
+    const { error } = await supabase
+      .from('DIARY')
+      .update({ is_deleted: true, updated_at: new Date().toISOString() })
+      .eq('recurring_id', diary.recurring_id)
+      .gte('target_date', diary.target_date)
+      .eq('current_status', 'UNREAD'); // 未読のもののみ削除
+
+    if (error) {
+      console.error('Error deleting recurring diaries:', error);
+      return { success: false, error: error.message };
+    }
+
+    // 繰り返し設定の終了日も更新
+    const previousDate = new Date(diary.target_date);
+    previousDate.setDate(previousDate.getDate() - 1);
+    await supabase
+      .from('recurring_settings')
+      .update({ 
+        end_date: previousDate.toISOString().split('T')[0],
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', diary.recurring_id);
+  }
+
+  revalidatePath('/');
+  return { success: true, mode };
+}
+
+/**
+ * 日報が繰り返し投稿かどうかを確認
+ */
+export async function checkIfRecurringDiary(diaryId: number): Promise<{ isRecurring: boolean; recurringId: number | null }> {
+  const supabase = await createClient();
+
+  const { data: diary } = await supabase
+    .from('DIARY')
+    .select('recurring_id')
+    .eq('diary_id', diaryId)
+    .single();
+
+  return {
+    isRecurring: !!diary?.recurring_id,
+    recurringId: diary?.recurring_id || null
+  };
 }
 
