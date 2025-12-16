@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import type { StaffWithRelations } from '@/types/database.types';
 
 /**
@@ -18,6 +17,7 @@ export async function getPendingStaff() {
       job_type:JOB_TYPE(*)
     `)
     .eq('is_active', false)
+    .eq('is_deleted', false) // 削除されていないユーザーのみ
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -148,7 +148,12 @@ export async function toggleStaffHidden(staffId: number, isHidden: boolean) {
 }
 
 /**
- * スタッフの削除フラグを切り替え
+ * スタッフの削除フラグを切り替え（論理削除/復元）
+ * 
+ * 一般的なサブスクリプション型サービスと同様のパターン:
+ * - 削除: is_deleted = true にするだけ（メールアドレスは変更しない）
+ * - 復元: is_deleted = false に戻すだけ
+ * - ユーザーは同じアカウントで再入会可能
  */
 export async function toggleStaffDeleted(staffId: number, isDeleted: boolean) {
   const supabase = await createClient();
@@ -169,38 +174,34 @@ export async function toggleStaffDeleted(staffId: number, isDeleted: boolean) {
     return { success: false, error: '管理者権限が必要です' };
   }
 
-  // 削除する場合（isDeleted = true）、最後の管理者を削除しようとしていないかチェック
+  // 削除する場合のみ、最後の管理者チェックを行う
   if (isDeleted) {
-    // 削除しようとしているユーザーの情報を取得
     const { data: targetStaff } = await supabase
       .from('STAFF')
       .select('system_role_id')
       .eq('staff_id', staffId)
       .single();
 
-    // 削除しようとしているユーザーが管理者の場合
     if (targetStaff && targetStaff.system_role_id === 1) {
-      // 他に管理者（is_deleted=falseかつsystem_role_id=1）がいるかチェック
       const { data: otherAdmins, error: countError } = await supabase
         .from('STAFF')
         .select('staff_id')
         .eq('system_role_id', 1)
         .eq('is_deleted', false)
-        .neq('staff_id', staffId); // 自分自身を除く
+        .neq('staff_id', staffId);
 
       if (countError) {
         console.error('Error checking admin count:', countError);
         return { success: false, error: '管理者数の確認に失敗しました' };
       }
 
-      // 他に管理者がいない場合は削除不可
       if (!otherAdmins || otherAdmins.length === 0) {
-        return { success: false, error: '管理者ではないので削除できません' };
+        return { success: false, error: '最後の管理者は削除できません' };
       }
     }
   }
 
-  // 削除フラグを更新
+  // 削除フラグを更新（シンプルにフラグを切り替えるだけ）
   const { error } = await supabase
     .from('STAFF')
     .update({ 
@@ -240,31 +241,27 @@ export async function toggleStaffAdminRole(staffId: number, isAdmin: boolean) {
     return { success: false, error: '管理者権限が必要です' };
   }
 
-  // 管理者権限をOFFにする場合（isAdmin = false）、最後の管理者をOFFにしようとしていないかチェック
+  // 管理者権限をOFFにする場合、最後の管理者をOFFにしようとしていないかチェック
   if (!isAdmin) {
-    // 権限をOFFにしようとしているユーザーの情報を取得
     const { data: targetStaff } = await supabase
       .from('STAFF')
       .select('system_role_id')
       .eq('staff_id', staffId)
       .single();
 
-    // 権限をOFFにしようとしているユーザーが管理者の場合
     if (targetStaff && targetStaff.system_role_id === 1) {
-      // 他に管理者（is_deleted=falseかつsystem_role_id=1）がいるかチェック
       const { data: otherAdmins, error: countError } = await supabase
         .from('STAFF')
         .select('staff_id')
         .eq('system_role_id', 1)
         .eq('is_deleted', false)
-        .neq('staff_id', staffId); // 自分自身を除く
+        .neq('staff_id', staffId);
 
       if (countError) {
         console.error('Error checking admin count:', countError);
         return { success: false, error: '管理者数の確認に失敗しました' };
       }
 
-      // 他に管理者がいない場合は権限をOFFにできない
       if (!otherAdmins || otherAdmins.length === 0) {
         return { success: false, error: '最後の管理者の権限をOFFにすることはできません' };
       }
@@ -289,4 +286,3 @@ export async function toggleStaffAdminRole(staffId: number, isAdmin: boolean) {
   revalidatePath('/admin/users');
   return { success: true };
 }
-
