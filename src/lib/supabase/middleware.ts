@@ -47,6 +47,7 @@ export async function updateSession(request: NextRequest) {
   // 認証が必要なルートの保護
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login');
   const isPendingPage = request.nextUrl.pathname === '/auth/pending';
+  const isDeletedPage = request.nextUrl.pathname === '/auth/account-deleted';
   const isCallbackRoute = request.nextUrl.pathname.startsWith('/auth/callback');
 
   // ログインページ以外はすべて保護対象（トップページ含む）
@@ -58,30 +59,41 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (user) {
-    // 承認状態をチェック (STAFFテーブルを参照)
+    // 承認状態と削除状態をチェック (STAFFテーブルを参照)
     const { data: staff } = await supabase
       .from('STAFF')
-      .select('is_active')
+      .select('is_active, is_deleted')
       .eq('email', user.email!)
       .single();
 
-    // 未承認ユーザーの場合
-    if (staff && !staff.is_active) {
+    // 削除済みユーザーの場合
+    if (staff && staff.is_deleted) {
+       // すでにDeletedページにいる場合は何もしない
+       if (isDeletedPage) {
+        return supabaseResponse;
+      }
+
+      // それ以外のページへのアクセスはDeletedページへリダイレクト
+      const url = request.nextUrl.clone();
+      url.pathname = '/auth/account-deleted';
+      return NextResponse.redirect(url);
+    }
+
+    // 未承認ユーザーの場合 (削除済みでない場合のみチェック)
+    if (staff && !staff.is_deleted && !staff.is_active) {
       // すでにPendingページにいる場合は何もしない
       if (isPendingPage) {
         return supabaseResponse;
       }
       
       // それ以外のページへのアクセスはPendingページへリダイレクト
-      // ログアウト処理(server action)へのアクセスは許可する必要があるが、
-      // ここでは単純なGETリクエストの保護を想定
       const url = request.nextUrl.clone();
       url.pathname = '/auth/pending';
       return NextResponse.redirect(url);
     }
 
-    // 承認済みユーザーがPendingページに来た場合、トップへ
-    if (isPendingPage) {
+    // 正常なユーザーが特殊ページ（Pending/Deleted）に来た場合、トップへ
+    if (isPendingPage || isDeletedPage) {
       const url = request.nextUrl.clone();
       url.pathname = '/';
       return NextResponse.redirect(url);
