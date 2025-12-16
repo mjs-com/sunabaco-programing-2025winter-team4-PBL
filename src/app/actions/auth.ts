@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 
 /**
  * メール/パスワードでログイン
@@ -41,6 +42,7 @@ export async function logout() {
  */
 export async function signUp(formData: FormData) {
   const supabase = await createClient();
+  const origin = headers().get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
@@ -48,6 +50,9 @@ export async function signUp(formData: FormData) {
   const { error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback`,
+    },
   });
 
   if (error) {
@@ -63,6 +68,7 @@ export async function signUp(formData: FormData) {
  */
 export async function registerStaff(formData: FormData) {
   const supabase = await createClient();
+  const origin = headers().get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
   const name = formData.get('name') as string;
   const email = formData.get('email') as string;
@@ -90,9 +96,13 @@ export async function registerStaff(formData: FormData) {
   }
 
   // Supabase Authにユーザーを作成
+  // emailRedirectToを明示的に指定することで、環境に応じた正しいリダイレクト先を設定
   const { data: authData, error: authError } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      emailRedirectTo: `${origin}/auth/callback`,
+    },
   });
 
   if (authError) {
@@ -128,4 +138,3 @@ export async function registerStaff(formData: FormData) {
 
   return { success: true };
 }
-

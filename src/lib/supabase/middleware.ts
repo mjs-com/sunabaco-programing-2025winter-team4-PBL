@@ -46,20 +46,53 @@ export async function updateSession(request: NextRequest) {
 
   // 認証が必要なルートの保護
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login');
-  
+  const isPendingPage = request.nextUrl.pathname === '/auth/pending';
+  const isCallbackRoute = request.nextUrl.pathname.startsWith('/auth/callback');
+
   // ログインページ以外はすべて保護対象（トップページ含む）
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isCallbackRoute) {
     // 未認証ユーザーをログインページへリダイレクト
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
-  if (user && isAuthRoute) {
-    // 認証済みユーザーをトップページへリダイレクト
-    const url = request.nextUrl.clone();
-    url.pathname = '/';
-    return NextResponse.redirect(url);
+  if (user) {
+    // 承認状態をチェック (STAFFテーブルを参照)
+    const { data: staff } = await supabase
+      .from('STAFF')
+      .select('is_active')
+      .eq('email', user.email!)
+      .single();
+
+    // 未承認ユーザーの場合
+    if (staff && !staff.is_active) {
+      // すでにPendingページにいる場合は何もしない
+      if (isPendingPage) {
+        return supabaseResponse;
+      }
+      
+      // それ以外のページへのアクセスはPendingページへリダイレクト
+      // ログアウト処理(server action)へのアクセスは許可する必要があるが、
+      // ここでは単純なGETリクエストの保護を想定
+      const url = request.nextUrl.clone();
+      url.pathname = '/auth/pending';
+      return NextResponse.redirect(url);
+    }
+
+    // 承認済みユーザーがPendingページに来た場合、トップへ
+    if (isPendingPage) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      return NextResponse.redirect(url);
+    }
+
+    // 認証済みユーザーがログインページに来た場合、トップへ
+    if (isAuthRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = '/';
+      return NextResponse.redirect(url);
+    }
   }
 
   return supabaseResponse;
