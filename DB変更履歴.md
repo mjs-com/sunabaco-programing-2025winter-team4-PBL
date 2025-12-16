@@ -196,3 +196,40 @@ CREATE INDEX idx_recurring_settings_staff_id ON "recurring_settings"(staff_id);
 - 繰り返し設定を削除した場合、過去の日報の`recurring_id`はNULLに設定される（データ整合性のため）
 - 頻度変更や終了日変更時は、未来の未読日報が自動的に削除される
 - `recurrence_config`はJSONB型で、頻度タイプに応じた詳細設定（曜日、間隔など）を保存
+
+## 2025-12-16 - 完全削除機能追加（中間テーブル）
+
+**変更日時**: 2025-12-16  
+**変更内容**: 削除済みユーザーを画面から完全に非表示にするための中間テーブルを新規作成
+
+**SQL文**:
+```sql
+-- 完全削除スタッフ中間テーブル（小文字で作成）
+CREATE TABLE IF NOT EXISTS permanently_deleted_staff (
+  staff_id INT PRIMARY KEY REFERENCES "STAFF"(staff_id) ON DELETE CASCADE,
+  deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE permanently_deleted_staff IS '完全削除されたスタッフを記録（UI非表示だがデータ保持）';
+```
+
+**変更理由**:
+- 削除済みユーザーを管理画面からも完全に非表示にする機能を追加
+- STAFFテーブルにカラム追加せず、中間テーブルで管理することで既存コードへの影響を最小化
+- 物理削除しないため、過去の投稿との整合性を保持
+
+**状態の定義**:
+| STAFF.is_deleted | permanently_deleted_staff | 状態 | 画面表示 |
+|------------------|---------------------------|------|----------|
+| false | なし | アクティブ | ユーザー管理 |
+| true | なし | 削除済み | 削除済みセクション（復元可能） |
+| true | あり | 完全削除 | なし（DB保持） |
+
+**影響範囲**:
+- `permanently_deleted_staff`テーブル（新規作成）
+- ユーザー管理画面（削除済みユーザーの折りたたみ表示、復元/完全削除ボタン）
+
+**注意事項**:
+- 完全削除は管理画面からの復元が不可（Supabase管理画面からは可能）
+- 完全削除されたユーザーの過去投稿は引き続き表示される
+- テーブル名は小文字（Supabaseスキーマキャッシュ対応のため）

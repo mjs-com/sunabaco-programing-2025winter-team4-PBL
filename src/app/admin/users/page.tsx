@@ -1,9 +1,10 @@
 import { Header } from '@/components/layout/Header';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import { getAllStaffForManagement } from '@/app/actions/admin';
+import { getAllStaffForManagement, getDeletedStaff } from '@/app/actions/admin';
 import { getCurrentStaff } from '@/app/actions/diary';
 import { redirect } from 'next/navigation';
 import { UserManagementList } from '@/components/admin/UserManagementList';
+import { DeletedUserList } from '@/components/admin/DeletedUserList';
 import { Users, Info } from 'lucide-react';
 
 export default async function UserManagementPage() {
@@ -21,6 +22,8 @@ export default async function UserManagementPage() {
 
   // 全スタッフ一覧を取得（削除されていないもののみ）
   const staffList = await getAllStaffForManagement();
+  // 削除済みスタッフ一覧を取得
+  const deletedStaffList = await getDeletedStaff();
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -29,7 +32,7 @@ export default async function UserManagementPage() {
         systemRoleId={currentStaff.system_role_id}
       />
       
-      <main className="container mx-auto px-4 py-6">
+      <main className="container mx-auto px-4 py-6 space-y-6">
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -64,6 +67,9 @@ export default async function UserManagementPage() {
             <UserManagementList staffList={staffList} />
           </CardContent>
         </Card>
+
+        {/* 削除済みユーザーセクション（折りたたみ式） */}
+        <DeletedUserList staffList={deletedStaffList} />
       </main>
     </div>
   );
