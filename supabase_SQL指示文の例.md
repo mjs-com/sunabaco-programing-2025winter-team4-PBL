@@ -166,7 +166,20 @@ CREATE UNIQUE INDEX "diary_cleaning_duty_unique"
 
 
 -- =============================================
--- 5-2. 繰り返し投稿設定 (Recurring Settings)
+-- 5-2. 完全削除スタッフ中間テーブル (Permanently Deleted Staff)
+-- =============================================
+
+-- 完全削除されたスタッフを記録（UI非表示だがデータ保持）
+-- ※テーブル名は小文字で作成（Supabaseスキーマキャッシュ対応のため）
+CREATE TABLE IF NOT EXISTS permanently_deleted_staff (
+    staff_id INT PRIMARY KEY REFERENCES "STAFF"(staff_id) ON DELETE CASCADE,
+    deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+COMMENT ON TABLE permanently_deleted_staff IS '完全削除されたスタッフを記録（UI非表示だがデータ保持）';
+
+-- =============================================
+-- 5-3. 繰り返し投稿設定 (Recurring Settings)
 -- =============================================
 
 -- 繰り返し設定テーブルの作成
@@ -311,6 +324,12 @@ VALUES
 -- インデックス作成
 -- CREATE INDEX IF NOT EXISTS idx_diary_recurring_id ON "DIARY"(recurring_id);
 -- CREATE INDEX IF NOT EXISTS idx_recurring_settings_staff_id ON "recurring_settings"(staff_id);
+
+-- 完全削除スタッフ中間テーブルを作成
+-- CREATE TABLE IF NOT EXISTS permanently_deleted_staff (
+--   staff_id INT PRIMARY KEY REFERENCES "STAFF"(staff_id) ON DELETE CASCADE,
+--   deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+-- );
 
 
 -- =============================================

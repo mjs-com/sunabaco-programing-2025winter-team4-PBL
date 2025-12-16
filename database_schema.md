@@ -133,6 +133,12 @@ erDiagram
         datetime updated_at
     }
 
+    %% 完全削除スタッフ中間テーブル
+    permanently_deleted_staff {
+        int staff_id PK,FK "STAFFへの参照"
+        datetime deleted_at "完全削除日時"
+    }
+
     %% リレーション
     JOB_TYPE ||--o{ STAFF : belongs_to
     SYSTEM_ROLE ||--o{ STAFF : has
@@ -153,3 +159,4 @@ erDiagram
     STAFF ||--o{ RECURRING_SETTINGS : creates
     RECURRING_SETTINGS ||--o{ DIARY : generates
     CATEGORY ||--o{ RECURRING_SETTINGS : category
+    STAFF ||--o| permanently_deleted_staff : permanently_deleted
