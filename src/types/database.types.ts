@@ -52,6 +52,12 @@ export interface Staff {
   updated_at: string;
 }
 
+// 完全削除スタッフ中間テーブル型
+export interface PermanentlyDeletedStaff {
+  staff_id: number;
+  deleted_at: string;
+}
+
 // リレーション込みのスタッフ型
 export interface StaffWithRelations extends Staff {
   job_type?: JobType;

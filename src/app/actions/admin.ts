@@ -108,6 +108,61 @@ export async function getAllStaffForManagement(): Promise<StaffWithRelations[]> 
 }
 
 /**
+ * 削除済みスタッフ一覧を取得（復元用）
+ * 完全削除されたユーザーは除外（中間テーブルで管理）
+ */
+export async function getDeletedStaff(): Promise<StaffWithRelations[]> {
+  const supabase = await createClient();
+
+  // 管理者権限チェック
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return [];
+  }
+
+  const { data: currentStaff } = await supabase
+    .from('STAFF')
+    .select('system_role_id')
+    .eq('email', user.email)
+    .single();
+
+  if (!currentStaff || currentStaff.system_role_id !== 1) {
+    return [];
+  }
+
+  // 完全削除されたスタッフIDを取得
+  const { data: permanentlyDeleted } = await supabase
+    .from('permanently_deleted_staff')
+    .select('staff_id');
+  
+  const permanentlyDeletedIds = (permanentlyDeleted || []).map(p => p.staff_id);
+
+  // 削除済み（is_deleted=true）で、完全削除されていないスタッフを取得
+  let query = supabase
+    .from('STAFF')
+    .select(`
+      *,
+      job_type:JOB_TYPE(*),
+      system_role:SYSTEM_ROLE(*)
+    `)
+    .eq('is_deleted', true); // 削除済みユーザーのみ
+
+  // 完全削除されたスタッフを除外
+  if (permanentlyDeletedIds.length > 0) {
+    query = query.not('staff_id', 'in', `(${permanentlyDeletedIds.join(',')})`);
+  }
+
+  const { data, error } = await query.order('updated_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching deleted staff:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
+/**
  * スタッフの非表示フラグを切り替え
  */
 export async function toggleStaffHidden(staffId: number, isHidden: boolean) {
@@ -212,6 +267,55 @@ export async function toggleStaffDeleted(staffId: number, isDeleted: boolean) {
 
   if (error) {
     console.error('Error toggling staff deleted:', error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath('/admin/users');
+  return { success: true };
+}
+
+/**
+ * スタッフを完全削除（画面から非表示にする）
+ * 中間テーブルにレコードを追加し、管理画面から見えなくする
+ * データベースには残る（物理削除しない）
+ */
+export async function permanentlyDeleteStaff(staffId: number) {
+  const supabase = await createClient();
+
+  // 管理者権限チェック
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: 'ログインが必要です' };
+  }
+
+  const { data: currentStaff } = await supabase
+    .from('STAFF')
+    .select('system_role_id')
+    .eq('email', user.email)
+    .single();
+
+  if (!currentStaff || currentStaff.system_role_id !== 1) {
+    return { success: false, error: '管理者権限が必要です' };
+  }
+
+  // 対象ユーザーが削除済み状態かチェック
+  const { data: targetStaff } = await supabase
+    .from('STAFF')
+    .select('is_deleted')
+    .eq('staff_id', staffId)
+    .single();
+
+  if (!targetStaff || !targetStaff.is_deleted) {
+    return { success: false, error: '削除済みユーザーのみ完全削除できます' };
+  }
+
+  // 中間テーブルにレコードを挿入（完全削除として記録）
+  const { error } = await supabase
+    .from('permanently_deleted_staff')
+    .insert({ staff_id: staffId });
+
+  if (error) {
+    console.error('Error permanently deleting staff:', error);
     return { success: false, error: error.message };
   }
 
