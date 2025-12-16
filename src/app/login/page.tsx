@@ -139,14 +139,16 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="login-email"
-                    name="email"
-                    type="email"
-                    placeholder="example@clinic.com"
-                    required
-                    className="pl-10"
-                  />
+                  <Input 
+                    id="register-email" 
+                    name="email" 
+                    type="text" 
+                    inputMode="email" 
+                    autoComplete="email" 
+                    autoCapitalize="none" 
+                    placeholder="example@clinic.com" 
+                    required 
+                    className="pl-10" />
                 </div>
               </div>
 
@@ -196,31 +198,38 @@ export default function LoginPage() {
                 </label>
                 <div className="relative">
                   <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
+                  <input
                     id="register-name"
                     name="name"
                     type="text"
+                    inputMode="text"
+                    lang="ja"
+                    autoComplete="name"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     placeholder="山田 太郎"
                     required
-                    className="pl-10"
+                    className="pl-10 w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
                   />
                 </div>
               </div>
-
               <div className="space-y-2">
                 <label htmlFor="register-email" className="text-sm font-medium text-slate-700">
                   メールアドレス <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="register-email"
-                    name="email"
-                    type="email"
-                    placeholder="example@clinic.com"
-                    required
-                    className="pl-10"
-                  />
+                  <Input 
+                    id="register-email" 
+                    name="email" 
+                    type="text" 
+                    inputMode="email" 
+                    autoComplete="email" 
+                    autoCapitalize="none" 
+                    placeholder="example@clinic.com" 
+                    required 
+                    className="pl-10" />
                 </div>
               </div>
 
