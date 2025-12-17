@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { revalidatePath } from 'next/cache';
+import { headers } from 'next/headers';
 
 interface UpdateProfileInput {
   staff_id: number;
@@ -21,46 +22,87 @@ interface UpdateStaffByAdminInput {
 }
 
 /**
- * 本人がプロフィールを更新
+ * 本人がプロフィールを更新（名前のみ）
  */
 export async function updateProfile(input: UpdateProfileInput) {
   const supabase = await createClient();
 
-  // スタッフ情報の更新
-  const updateData: { name?: string; email?: string; personal_color?: string | null } = {};
+  // 名前のみSTAFFテーブルを更新（メールアドレスは別関数で処理）
+  const updateData: { name?: string; personal_color?: string | null } = {};
   if (input.name) updateData.name = input.name;
-  if (input.email) updateData.email = input.email;
   if (input.personal_color !== undefined) updateData.personal_color = input.personal_color;
 
-  const { error: staffError } = await supabase
-    .from('STAFF')
-    .update(updateData)
-    .eq('staff_id', input.staff_id);
+  if (Object.keys(updateData).length > 0) {
+    const { error: staffError } = await supabase
+      .from('STAFF')
+      .update(updateData)
+      .eq('staff_id', input.staff_id);
 
-  if (staffError) {
-    console.error('Error updating staff:', staffError);
-    return { success: false, error: staffError.message };
-  }
-
-  // メールアドレスが変更された場合、Supabase Authも更新
-  if (input.email) {
-    const { error: authError } = await supabase.auth.updateUser({
-      email: input.email,
-    });
-
-    if (authError) {
-      console.error('Error updating auth email:', authError);
-      // スタッフテーブルは更新されたが、Auth更新に失敗した場合の警告
-      return { 
-        success: true, 
-        warning: 'プロフィールは更新されましたが、認証メールの更新に失敗しました。再度ログインしてください。' 
-      };
+    if (staffError) {
+      console.error('Error updating staff:', staffError);
+      return { success: false, error: staffError.message };
     }
   }
 
   revalidatePath('/mypage');
   revalidatePath('/cleaning-duty/calendar');
   return { success: true };
+}
+
+/**
+ * メールアドレス変更リクエスト
+ * Supabase Auth側のみ更新し、確認メールを送信
+ * STAFFテーブルは確認完了後（auth/callback）で更新
+ */
+export async function requestEmailChange(staffId: number, newEmail: string) {
+  const supabase = await createClient();
+  const origin = headers().get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+  // 現在のユーザー情報を取得
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    return { success: false, error: '認証されていません' };
+  }
+
+  // 新しいメールアドレスが既に使用されていないかチェック
+  const { data: existingStaff } = await supabase
+    .from('STAFF')
+    .select('staff_id')
+    .eq('email', newEmail)
+    .neq('staff_id', staffId)
+    .single();
+
+  if (existingStaff) {
+    return { success: false, error: 'このメールアドレスは既に使用されています' };
+  }
+
+  // 古いメールアドレスをuser_metadataに保存（確認完了時にSTAFF更新に使用）
+  const { error: metaError } = await supabase.auth.updateUser({
+    data: { 
+      old_email: user.email,
+      pending_staff_id: staffId
+    }
+  });
+
+  if (metaError) {
+    console.error('Error saving old email to metadata:', metaError);
+  }
+
+  // Supabase Authにメールアドレス変更をリクエスト
+  const { error: authError } = await supabase.auth.updateUser({
+    email: newEmail,
+  });
+
+  if (authError) {
+    console.error('Error requesting email change:', authError);
+    return { success: false, error: authError.message };
+  }
+
+  return { 
+    success: true, 
+    emailChangeRequested: true,
+    message: '確認メールを送信しました。メール内のリンクをクリックして変更を完了してください。'
+  };
 }
 
 /**

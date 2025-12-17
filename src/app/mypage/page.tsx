@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -8,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { User, Heart, Mail, Briefcase, Shield, Calendar, ArrowUp, ArrowDown, Edit2, Save, X, Lock, Trophy, Palette, RefreshCw } from 'lucide-react';
 import { getCurrentStaff } from '@/app/actions/diary';
 import { getPointHistory, getMonthlyPoints } from '@/app/actions/points';
-import { updateProfile, updatePassword, updatePersonalColor } from '@/app/actions/profile';
+import { updateProfile, updatePassword, updatePersonalColor, requestEmailChange } from '@/app/actions/profile';
 import { formatDate, formatTime, generateRandomPersonalColor, colorToHex, cn } from '@/lib/utils';
 import type { PointLog } from '@/types/database.types';
 
@@ -59,7 +60,9 @@ export default function MyPage() {
   // エラー・メッセージ
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [emailPending, setEmailPending] = useState(false);
 
+  const searchParams = useSearchParams();
   const isAdmin = profile?.system_role_id === 1;
 
   useEffect(() => {
@@ -89,28 +92,83 @@ export default function MyPage() {
     loadData();
   }, []);
 
+  // URLパラメータからメール変更完了を検出
+  useEffect(() => {
+    const emailChanged = searchParams.get('email_changed');
+    const urlError = searchParams.get('error');
+    
+    if (emailChanged === 'true') {
+      setSuccess('メールアドレスが正常に変更されました');
+    } else if (emailChanged === 'partial') {
+      setSuccess('メールアドレスが変更されました。もし問題があれば管理者にお問い合わせください。');
+    } else if (urlError === 'email_change_failed') {
+      setError('メールアドレスの変更に失敗しました。もう一度お試しください。');
+    }
+  }, [searchParams]);
+
   const handleSaveProfile = () => {
     if (!profile) return;
     setError(null);
     setSuccess(null);
+    setEmailPending(false);
+
+    const nameChanged = editName !== profile.name;
+    const emailChanged = editEmail !== profile.email;
 
     startTransition(async () => {
-      const result = await updateProfile({
-        staff_id: profile.staff_id,
-        name: editName,
-        email: editEmail,
-      });
+      // 名前が変更された場合
+      if (nameChanged) {
+        const result = await updateProfile({
+          staff_id: profile.staff_id,
+          name: editName,
+        });
 
-      if (result.success) {
-        setSuccess('プロフィールを更新しました');
-        setIsEditingProfile(false);
-        // プロフィールを再読み込み
-        const staff = await getCurrentStaff();
-        if (staff) {
-          setProfile(staff as StaffProfile);
+        if (!result.success) {
+          setError(result.error || '名前の更新に失敗しました');
+          return;
         }
-      } else {
-        setError(result.error || '更新に失敗しました');
+      }
+
+      // メールアドレスが変更された場合
+      if (emailChanged) {
+        const emailResult = await requestEmailChange(profile.staff_id, editEmail);
+
+        if (!emailResult.success) {
+          setError(emailResult.error || 'メールアドレスの更新に失敗しました');
+          // 名前は更新されているので、プロフィールを再読み込み
+          const staff = await getCurrentStaff();
+          if (staff) {
+            setProfile(staff as StaffProfile);
+            setEditEmail(staff.email); // メールは元に戻す
+          }
+          return;
+        }
+
+        if (emailResult.emailChangeRequested) {
+          setEmailPending(true);
+          setSuccess(emailResult.message || '確認メールを送信しました');
+          // メールアドレスは確認完了まで元のまま
+          setEditEmail(profile.email);
+        }
+      }
+
+      // 両方成功した場合
+      if (nameChanged && !emailChanged) {
+        setSuccess('プロフィールを更新しました');
+      } else if (!nameChanged && emailChanged) {
+        // メール変更のみの場合、上で処理済み
+      } else if (nameChanged && emailChanged) {
+        setSuccess('名前を更新しました。メールアドレスの変更は確認メールをご確認ください。');
+      }
+
+      setIsEditingProfile(false);
+
+      // プロフィールを再読み込み
+      const staff = await getCurrentStaff();
+      if (staff) {
+        setProfile(staff as StaffProfile);
+        setEditName(staff.name);
+        setEditEmail(staff.email);
       }
     });
   };
@@ -270,13 +328,16 @@ export default function MyPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-slate-700">メールアドレス</label>
+                  <label className="text-sm font-medium text-slate-700">メールアドレス（ログイン用）</label>
                   <Input
                     type="email"
                     value={editEmail}
                     onChange={(e) => setEditEmail(e.target.value)}
                     placeholder="メールアドレスを入力"
                   />
+                  <p className="text-xs text-slate-500">
+                    ※メールアドレスを変更すると確認メールが送信されます。メール内のリンクをクリックして変更を完了してください。
+                  </p>
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="outline" onClick={cancelEdit} disabled={isPending}>
