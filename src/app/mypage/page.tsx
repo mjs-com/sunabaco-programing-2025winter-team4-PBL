@@ -5,11 +5,11 @@ import { Header } from '@/components/layout/Header';
 import { Card, CardHeader, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { User, Heart, Mail, Briefcase, Shield, Calendar, TrendingUp, TrendingDown, Edit2, Save, X, Lock, Trophy, Palette, RefreshCw } from 'lucide-react';
+import { User, Heart, Mail, Briefcase, Shield, Calendar, ArrowUp, ArrowDown, Edit2, Save, X, Lock, Trophy, Palette, RefreshCw } from 'lucide-react';
 import { getCurrentStaff } from '@/app/actions/diary';
 import { getPointHistory, getMonthlyPoints } from '@/app/actions/points';
 import { updateProfile, updatePassword, updatePersonalColor } from '@/app/actions/profile';
-import { formatDate, formatTime, generateRandomPersonalColor, colorToHex } from '@/lib/utils';
+import { formatDate, formatTime, generateRandomPersonalColor, colorToHex, cn } from '@/lib/utils';
 import type { PointLog } from '@/types/database.types';
 
 interface StaffProfile {
@@ -27,6 +27,14 @@ interface StaffProfile {
     role_name: string;
   };
   created_at: string;
+}
+
+// ステータスタグを日本語に置き換える関数
+function replaceStatusTags(text: string): string {
+  return text
+    .replace(/CONFIRMED/g, '🔍 確認した')
+    .replace(/WORKING/g, '🛠️ 作業中')
+    .replace(/SOLVED/g, '✅ 解決済み');
 }
 
 export default function MyPage() {
@@ -521,24 +529,33 @@ export default function MyPage() {
                 {pointHistory.slice(0, 10).map((log, index) => (
                   <div 
                     key={log.point_log_id || index} 
-                    className="flex items-center justify-between p-3 bg-slate-50 rounded-lg"
+                    className="flex items-center justify-between p-4 bg-slate-50 rounded-lg"
                   >
                     <div className="flex items-center gap-3">
                       {log.amount > 0 ? (
-                        <TrendingUp className="h-5 w-5 text-green-500" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-600">
+                          <ArrowUp className="h-5 w-5" />
+                        </div>
                       ) : (
-                        <TrendingDown className="h-5 w-5 text-red-500" />
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-red-600">
+                          <ArrowDown className="h-5 w-5" />
+                        </div>
                       )}
-                      <div>
-                        <p className="text-sm font-medium text-slate-700">{log.reason}</p>
-                        <p className="text-xs text-slate-400">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-slate-800">
+                          {replaceStatusTags(log.reason)}
+                        </p>
+                        <p className="text-xs text-slate-500">
                           {formatDate(log.created_at)} {formatTime(log.created_at)}
                         </p>
                       </div>
                     </div>
-                    <span className={`font-bold ${log.amount > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {log.amount > 0 ? '+' : ''}{log.amount}pt
-                    </span>
+                    <div className={cn(
+                      'font-semibold text-lg',
+                      log.amount > 0 ? 'text-green-600' : 'text-red-600'
+                    )}>
+                      {log.amount > 0 ? '+' : ''}{log.amount}
+                    </div>
                   </div>
                 ))}
               </div>

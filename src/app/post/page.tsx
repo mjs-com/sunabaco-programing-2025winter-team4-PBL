@@ -49,7 +49,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
+    <Button type="submit" className="w-full py-3 text-base" disabled={pending}>
       {pending ? (
         <>
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -297,8 +297,8 @@ function PostPageContent() {
               )}
 
               {/* カテゴリ選択 */}
-              <div className="space-y-2">
-                <label htmlFor="category_id" className="text-sm font-medium text-slate-700">
+              <div className="space-y-3 sm:space-y-2">
+                <label htmlFor="category_id" className="text-base sm:text-sm font-medium text-slate-700">
                   カテゴリ <span className="text-red-500">*</span>
                 </label>
                 <Select id="category_id" name="category_id" required defaultValue={initialCategoryId}>
@@ -312,8 +312,8 @@ function PostPageContent() {
               </div>
 
               {/* 日付 */}
-              <div className="space-y-2">
-                <label htmlFor="target_date" className="text-sm font-medium text-slate-700">
+              <div className="space-y-3 sm:space-y-2 mt-4 sm:mt-0">
+                <label htmlFor="target_date" className="text-base sm:text-sm font-medium text-slate-700">
                   日付 <span className="text-red-500">*</span>
                 </label>
                 <div className="w-full overflow-hidden">
@@ -329,9 +329,9 @@ function PostPageContent() {
               </div>
 
               {/* 期限 */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  期限
+              <div className="space-y-3 sm:space-y-2 mt-4 sm:mt-0">
+                <label className="text-base sm:text-sm font-medium text-slate-700">
+                  期限（この日までの投稿）
                 </label>
                 <div className="flex items-center gap-3">
                   <Switch
@@ -339,7 +339,7 @@ function PostPageContent() {
                     checked={hasDeadline}
                     onChange={(e) => setHasDeadline(e.target.checked)}
                   />
-                  <label htmlFor="has-deadline" className="text-sm text-slate-600">
+                  <label htmlFor="has-deadline" className="text-base sm:text-sm text-slate-600">
                     {hasDeadline ? '期限あり' : '期限なし'}
                   </label>
                 </div>
@@ -359,9 +359,9 @@ function PostPageContent() {
               </div>
 
               {/* 繰り返し */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-slate-700">
-                  繰り返し
+              <div className="space-y-3 sm:space-y-2 mt-4 sm:mt-0">
+                <label className="text-base sm:text-sm font-medium text-slate-700">
+                  繰り返し（指定した間隔で表示）
                 </label>
                 <div className="flex items-center gap-3">
                   <Switch
@@ -369,7 +369,7 @@ function PostPageContent() {
                     checked={hasRecurrence}
                     onChange={(e) => setHasRecurrence(e.target.checked)}
                   />
-                  <label htmlFor="has-recurrence" className="text-sm text-slate-600">
+                  <label htmlFor="has-recurrence" className="text-base sm:text-sm text-slate-600">
                     {hasRecurrence ? '繰り返しあり' : '繰り返しなし'}
                   </label>
                 </div>
@@ -529,8 +529,8 @@ function PostPageContent() {
               </div>
 
               {/* タイトル */}
-              <div className="space-y-2">
-                <label htmlFor="title" className="text-sm font-medium text-slate-700">
+              <div className="space-y-3 sm:space-y-2 mt-4 sm:mt-0">
+                <label htmlFor="title" className="text-base sm:text-sm font-medium text-slate-700">
                   タイトル <span className="text-red-500">*</span>
                 </label>
                 <Input
@@ -545,9 +545,9 @@ function PostPageContent() {
               </div>
 
               {/* 内容 */}
-              <div className="space-y-2">
+              <div className="space-y-3 sm:space-y-2 mt-4 sm:mt-0">
                 <div className="flex items-center gap-2">
-                  <label htmlFor="content" className="text-sm font-medium text-slate-700">
+                  <label htmlFor="content" className="text-base sm:text-sm font-medium text-slate-700">
                     内容 <span className="text-red-500">*</span>
                   </label>
                   <MentionButton
@@ -566,9 +566,9 @@ function PostPageContent() {
                   placeholder="日報の内容を入力"
                   rows={6}
                   showAtButton={false}
-                  className="min-h-[120px] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-transparent resize-none"
+                  className="min-h-[140px] sm:min-h-[120px] w-full rounded-lg border border-slate-300 bg-white px-3 py-3 sm:py-2 text-base sm:text-sm placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:border-transparent resize-none"
                 />
-                <p className="text-base text-slate-600">
+                <p className="text-sm sm:text-base text-slate-600 mt-2">
                   💡 音声入力するには、キーボードのマイクをタップ
                 </p>
                 <input type="hidden" name="content" value={content} required />
@@ -576,11 +576,11 @@ function PostPageContent() {
 
               {/* 至急フラグ */}
               <div className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
-                <div className="flex items-center space-x-3">
-                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                <div className="flex items-start space-x-3">
+                  <AlertTriangle className="h-6 w-6 sm:h-5 sm:w-5 mt-0.5 text-red-500 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-slate-700">至急</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-base sm:text-sm font-medium text-slate-700">至急</p>
+                    <p className="text-sm sm:text-xs text-slate-500 mt-1">
                       緊急の対応が必要な場合はONにしてください
                     </p>
                   </div>
@@ -592,7 +592,7 @@ function PostPageContent() {
             <CardFooter className="flex-col space-y-3">
               <SubmitButton />
               <Link href="/" className="w-full">
-                <Button type="button" variant="ghost" className="w-full">
+                <Button type="button" variant="ghost" className="w-full py-3 text-base">
                   キャンセル
                 </Button>
               </Link>
