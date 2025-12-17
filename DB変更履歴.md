@@ -233,3 +233,33 @@ COMMENT ON TABLE permanently_deleted_staff IS '完全削除されたスタッフ
 - 完全削除は管理画面からの復元が不可（Supabase管理画面からは可能）
 - 完全削除されたユーザーの過去投稿は引き続き表示される
 - テーブル名は小文字（Supabaseスキーマキャッシュ対応のため）
+
+## 2025-12-17 - メールアドレス変更機能（Admin API使用）
+
+**変更日時**: 2025-12-17  
+**変更内容**: メールアドレス変更機能の実装（データベーススキーマの変更なし）
+
+**SQL文**:
+```sql
+-- データベーススキーマの変更は不要
+-- Supabase AuthのAdmin APIを使用してメールアドレスを直接更新
+-- user_metadata（Supabase Auth標準機能）を使用してメール変更後の同期を実現
+```
+
+**変更理由**:
+- Supabase Authの標準API（`updateUser({ email })`）では、Auth側のメールアドレスが確実に更新されない既知の問題がある
+- Admin APIを使用することで、Auth側とSTAFFテーブルの両方を確実に同期できる
+- 確認メール不要で即座にメールアドレスを変更できる
+
+**影響範囲**:
+- データベーススキーマ: **変更なし** ✅
+- `src/app/actions/profile.ts`: Admin APIを使用したメールアドレス変更処理
+- `src/app/auth/callback/route.ts`: メール変更確認時の同期処理（フォールバック用）
+- `src/lib/supabase/middleware.ts`: メール変更後の自動同期処理（バックアップ用）
+
+**注意事項**:
+- **環境変数 `SUPABASE_SERVICE_ROLE_KEY` の設定が必須**
+  - Vercelの環境変数に設定してください
+  - ⚠️ この鍵は絶対に公開しないでください（NEXT_PUBLIC_ プレフィックスは付けない）
+- サービスロールキーがない場合は、従来の確認メール方式にフォールバックします
+- `user_metadata`（`old_email`, `pending_staff_id`）はSupabase Authの標準機能で、データベーススキーマには影響しません
