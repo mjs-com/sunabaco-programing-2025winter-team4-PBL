@@ -314,7 +314,7 @@ function PostPageContent() {
               {/* 日付 */}
               <div className="space-y-3 sm:space-y-2 mt-4 sm:mt-0">
                 <label htmlFor="target_date" className="text-base sm:text-sm font-medium text-slate-700">
-                  日付 <span className="text-red-500">*</span>
+                  表示する日付 <span className="text-red-500">*</span>
                 </label>
                 <div className="w-full overflow-hidden">
                   <Input
