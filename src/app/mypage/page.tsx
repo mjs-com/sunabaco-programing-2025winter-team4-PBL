@@ -38,7 +38,7 @@ function replaceStatusTags(text: string): string {
     .replace(/SOLVED/g, '✅ 解決済み');
 }
 
-export default function MyPage() {
+function MyPageContent() {
   const [profile, setProfile] = useState<StaffProfile | null>(null);
   const [pointHistory, setPointHistory] = useState<PointLog[]>([]);
   const [monthlyPoints, setMonthlyPoints] = useState<number>(0);
@@ -630,5 +630,13 @@ export default function MyPage() {
         </Card>
       </main>
     </div>
+  );
+}
+
+export default function MyPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">読み込み中...</div>}>
+      <MyPageContent />
+    </Suspense>
   );
 }
