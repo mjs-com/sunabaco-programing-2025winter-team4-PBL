@@ -62,11 +62,70 @@ export async function updateSession(request: NextRequest) {
 
   if (user) {
     // 承認状態と削除状態をチェック (STAFFテーブルを参照)
-    const { data: staff } = await supabase
+    let { data: staff } = await supabase
       .from('STAFF')
-      .select('is_active, is_deleted')
+      .select('staff_id, email, is_active, is_deleted')
       .eq('email', user.email!)
       .single();
+
+    // Auth側のemailでSTAFFが見つからない場合、メール変更後の未同期を検出
+    if (!staff) {
+      const oldEmail = user.user_metadata?.old_email;
+      const staffId = user.user_metadata?.pending_staff_id;
+
+      // user_metadataにold_emailがある場合、メール変更後と判断してSTAFFを同期
+      if (oldEmail || staffId) {
+        // 方法1: staff_idで検索
+        if (staffId) {
+          const { data: staffById } = await supabase
+            .from('STAFF')
+            .select('staff_id, email, is_active, is_deleted')
+            .eq('staff_id', staffId)
+            .single();
+
+          if (staffById) {
+            // STAFFテーブルのemailを更新
+            await supabase
+              .from('STAFF')
+              .update({ email: user.email })
+              .eq('staff_id', staffId);
+            
+            // メタデータをクリーンアップ
+            await supabase.auth.updateUser({
+              data: { old_email: null, pending_staff_id: null }
+            });
+
+            staff = { ...staffById, email: user.email };
+            console.log('Middleware: Synced STAFF email via staff_id');
+          }
+        }
+
+        // 方法2: old_emailで検索
+        if (!staff && oldEmail) {
+          const { data: staffByOldEmail } = await supabase
+            .from('STAFF')
+            .select('staff_id, email, is_active, is_deleted')
+            .eq('email', oldEmail)
+            .single();
+
+          if (staffByOldEmail) {
+            // STAFFテーブルのemailを更新
+            await supabase
+              .from('STAFF')
+              .update({ email: user.email })
+              .eq('email', oldEmail);
+            
+            // メタデータをクリーンアップ
+            await supabase.auth.updateUser({
+              data: { old_email: null, pending_staff_id: null }
+            });
+
+            staff = { ...staffByOldEmail, email: user.email };
+            console.log('Middleware: Synced STAFF email via old_email');
+          }
+        }
+      }
+    }
 
     // 削除済みユーザーの場合
     if (staff && staff.is_deleted) {

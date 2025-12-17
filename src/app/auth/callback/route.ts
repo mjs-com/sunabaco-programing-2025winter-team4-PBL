@@ -49,74 +49,107 @@ export async function GET(request: Request) {
     return NextResponse.redirect(`${origin}/login?error=invalid_reset_link`);
   }
 
-  // メールアドレス変更確認の場合
+  // メールアドレス変更確認の場合（token_hash方式）
   if (type === 'email_change' && token_hash) {
-    const { data, error } = await supabase.auth.verifyOtp({
-      type: 'email_change',
-      token_hash,
-    });
-
-    if (!error && data.user) {
-      const newEmail = data.user.email;
-      const oldEmail = data.user.user_metadata?.old_email;
-      const staffId = data.user.user_metadata?.pending_staff_id;
-
-      // STAFFテーブルのemailを更新
-      let updateSuccess = false;
-
-      // 方法1: user_metadataに保存されたstaff_idを使用
-      if (staffId) {
-        const { error: staffError } = await supabase
-          .from('STAFF')
-          .update({ email: newEmail })
-          .eq('staff_id', staffId);
-        
-        if (!staffError) {
-          updateSuccess = true;
-        }
-      }
-
-      // 方法2: 古いメールアドレスで検索
-      if (!updateSuccess && oldEmail) {
-        const { error: staffError } = await supabase
-          .from('STAFF')
-          .update({ email: newEmail })
-          .eq('email', oldEmail);
-        
-        if (!staffError) {
-          updateSuccess = true;
-        }
-      }
-
-      // user_metadataをクリーンアップ
-      await supabase.auth.updateUser({
-        data: { 
-          old_email: null,
-          pending_staff_id: null
-        }
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        type: 'email_change',
+        token_hash,
       });
 
-      if (updateSuccess) {
+      if (!error && data.user) {
+        // STAFFテーブルを同期
+        await syncStaffEmail(supabase, data.user);
         return NextResponse.redirect(`${origin}/mypage?email_changed=true`);
-      } else {
-        // STAFF更新に失敗した場合でも、Auth側は更新されているので警告を表示
-        return NextResponse.redirect(`${origin}/mypage?email_changed=partial`);
       }
+    } catch (e) {
+      console.error('Error verifying email change OTP:', e);
     }
     
     return NextResponse.redirect(`${origin}/mypage?error=email_change_failed`);
   }
 
-  // 通常の認証コードの場合
+  // 通常の認証コードの場合（PKCE方式）
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     
-    if (!error) {
-      // 承認待ちページへリダイレクト
+    if (!error && data.user) {
+      // メール変更が完了している場合、STAFFテーブルを同期
+      await syncStaffEmail(supabase, data.user);
+      
+      // 承認待ちページまたは指定先へリダイレクト
       return NextResponse.redirect(`${origin}${next}`);
+    }
+  }
+
+  // token_hashのみがある場合（Supabaseのデフォルトリダイレクト）
+  if (token_hash && !type) {
+    // セッションを取得してメール変更を検出
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await syncStaffEmail(supabase, user);
+      return NextResponse.redirect(`${origin}/mypage?email_changed=true`);
     }
   }
 
   // エラー時またはコードがない場合はログインページへ
   return NextResponse.redirect(`${origin}/login?error=auth_callback_error`);
+}
+
+/**
+ * Auth側のメールアドレスとSTAFFテーブルを同期
+ */
+async function syncStaffEmail(supabase: any, user: any) {
+  const authEmail = user.email;
+  const oldEmail = user.user_metadata?.old_email;
+  const staffId = user.user_metadata?.pending_staff_id;
+
+  if (!authEmail) return;
+
+  // 方法1: user_metadataに保存されたstaff_idを使用
+  if (staffId) {
+    const { error } = await supabase
+      .from('STAFF')
+      .update({ email: authEmail })
+      .eq('staff_id', staffId);
+    
+    if (!error) {
+      // メタデータをクリーンアップ
+      await supabase.auth.updateUser({
+        data: { old_email: null, pending_staff_id: null }
+      });
+      return;
+    }
+  }
+
+  // 方法2: 古いメールアドレスで検索
+  if (oldEmail && oldEmail !== authEmail) {
+    const { error } = await supabase
+      .from('STAFF')
+      .update({ email: authEmail })
+      .eq('email', oldEmail);
+    
+    if (!error) {
+      // メタデータをクリーンアップ
+      await supabase.auth.updateUser({
+        data: { old_email: null, pending_staff_id: null }
+      });
+      return;
+    }
+  }
+
+  // 方法3: Auth側のemailでSTAFFが見つからない場合、不整合を検出
+  const { data: existingStaff } = await supabase
+    .from('STAFF')
+    .select('staff_id, email')
+    .eq('email', authEmail)
+    .single();
+
+  if (!existingStaff && oldEmail) {
+    // Auth側のemailでSTAFFが見つからない = メール変更後にSTAFFが未更新
+    await supabase
+      .from('STAFF')
+      .update({ email: authEmail })
+      .eq('email', oldEmail);
+  }
 }
