@@ -64,6 +64,60 @@ export async function signUp(formData: FormData) {
 }
 
 /**
+ * パスワードリセットメールを送信
+ */
+export async function resetPassword(email: string) {
+  const supabase = await createClient();
+  const origin = headers().get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+  // メールアドレスが登録されているか確認
+  const { data: staff } = await supabase
+    .from('STAFF')
+    .select('email')
+    .eq('email', email)
+    .eq('is_deleted', false)
+    .single();
+
+  if (!staff) {
+    // セキュリティのため、存在しない場合も同じメッセージを返す
+    return { success: true, message: 'メールアドレスが登録されている場合、リセットメールを送信しました' };
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/callback?next=/auth/reset-password`,
+  });
+
+  if (error) {
+    console.error('Error sending reset password email:', error);
+    return { error: 'リセットメールの送信に失敗しました。しばらく経ってからお試しください。' };
+  }
+
+  return { success: true, message: 'パスワードリセットメールを送信しました。メールをご確認ください。' };
+}
+
+/**
+ * パスワードを更新（リセット後）
+ */
+export async function updatePasswordAfterReset(newPassword: string) {
+  const supabase = await createClient();
+
+  if (newPassword.length < 6) {
+    return { error: 'パスワードは6文字以上で入力してください' };
+  }
+
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (error) {
+    console.error('Error updating password:', error);
+    return { error: 'パスワードの更新に失敗しました' };
+  }
+
+  return { success: true };
+}
+
+/**
  * スタッフ新規登録申請
  */
 export async function registerStaff(formData: FormData) {

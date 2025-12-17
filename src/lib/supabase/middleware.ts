@@ -49,9 +49,11 @@ export async function updateSession(request: NextRequest) {
   const isPendingPage = request.nextUrl.pathname === '/auth/pending';
   const isDeletedPage = request.nextUrl.pathname === '/auth/account-deleted';
   const isCallbackRoute = request.nextUrl.pathname.startsWith('/auth/callback');
+  const isResetPasswordPage = request.nextUrl.pathname === '/auth/reset-password';
 
   // ログインページ以外はすべて保護対象（トップページ含む）
-  if (!user && !isAuthRoute && !isCallbackRoute) {
+  // ただし、パスワードリセットページはセッション確立後にアクセスするため許可
+  if (!user && !isAuthRoute && !isCallbackRoute && !isResetPasswordPage) {
     // 未認証ユーザーをログインページへリダイレクト
     const url = request.nextUrl.clone();
     url.pathname = '/login';

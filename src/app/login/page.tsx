@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from '@/components/ui/Card';
-import { login, registerStaff } from '@/app/actions/auth';
+import { login, registerStaff, resetPassword } from '@/app/actions/auth';
 import { cn } from '@/lib/utils';
 
 function LoginSubmitButton() {
@@ -45,11 +45,29 @@ function RegisterSubmitButton() {
   );
 }
 
+function ResetPasswordSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button type="submit" className="w-full" disabled={pending}>
+      {pending ? (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          送信中...
+        </>
+      ) : (
+        'リセットメールを送信'
+      )}
+    </Button>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [mode, setMode] = useState<'login' | 'register' | 'resetPassword'>('login');
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   async function handleLogin(formData: FormData) {
     setError(null);
@@ -71,6 +89,25 @@ export default function LoginPage() {
         setMode('login');
         setSuccess(false);
       }, 2000);
+    }
+  }
+
+  async function handleResetPassword(formData: FormData) {
+    setError(null);
+    setSuccessMessage(null);
+    const email = formData.get('email') as string;
+    
+    if (!email) {
+      setError('メールアドレスを入力してください');
+      return;
+    }
+
+    const result = await resetPassword(email);
+
+    if (result?.error) {
+      setError(result.error);
+    } else if (result?.success) {
+      setSuccessMessage(result.message || 'リセットメールを送信しました');
     }
   }
 
@@ -172,12 +209,24 @@ export default function LoginPage() {
 
             <CardFooter className="flex-col space-y-4">
               <LoginSubmitButton />
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('resetPassword');
+                  setError(null);
+                  setSuccess(false);
+                  setSuccessMessage(null);
+                }}
+                className="text-xs text-primary-600 hover:text-primary-700 hover:underline"
+              >
+                パスワードを忘れた方はこちら
+              </button>
               <p className="text-xs text-center text-slate-500">
                 ログイン情報がわからない場合は管理者にお問い合わせください
               </p>
             </CardFooter>
           </form>
-        ) : (
+        ) : mode === 'register' ? (
           <form action={handleRegister}>
             <CardContent className="space-y-4">
               {success && (
@@ -270,6 +319,64 @@ export default function LoginPage() {
               <p className="text-xs text-center text-slate-500">
                 登録後、管理者の承認が必要です。承認までお待ちください。
               </p>
+            </CardFooter>
+          </form>
+        ) : (
+          <form action={handleResetPassword}>
+            <CardContent className="space-y-4">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold text-slate-800">パスワードリセット</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  登録されているメールアドレスにリセットリンクを送信します
+                </p>
+              </div>
+
+              {successMessage && (
+                <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-600">
+                  {successMessage}
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm text-red-600">
+                  {error}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label htmlFor="reset-email" className="text-sm font-medium text-slate-700">
+                  メールアドレス
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input 
+                    id="reset-email" 
+                    name="email" 
+                    type="text" 
+                    inputMode="email" 
+                    autoComplete="email" 
+                    autoCapitalize="none" 
+                    placeholder="example@clinic.com" 
+                    required 
+                    className="pl-10" />
+                </div>
+              </div>
+            </CardContent>
+
+            <CardFooter className="flex-col space-y-4">
+              <ResetPasswordSubmitButton />
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('login');
+                  setError(null);
+                  setSuccess(false);
+                  setSuccessMessage(null);
+                }}
+                className="text-sm text-slate-600 hover:text-slate-800 hover:underline"
+              >
+                ← ログインに戻る
+              </button>
             </CardFooter>
           </form>
         )}
