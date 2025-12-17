@@ -50,13 +50,11 @@ export async function updateProfile(input: UpdateProfileInput) {
 }
 
 /**
- * メールアドレス変更リクエスト
- * Supabase Auth側のみ更新し、確認メールを送信
- * STAFFテーブルは確認完了後（auth/callback）で更新
+ * メールアドレス変更（Admin API使用）
+ * Supabase Auth と STAFFテーブル の両方を直接更新
  */
 export async function requestEmailChange(staffId: number, newEmail: string) {
   const supabase = await createClient();
-  const origin = headers().get('origin') || process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
   // 現在のユーザー情報を取得
   const { data: { user } } = await supabase.auth.getUser();
@@ -64,7 +62,7 @@ export async function requestEmailChange(staffId: number, newEmail: string) {
     return { success: false, error: '認証されていません' };
   }
 
-  // 新しいメールアドレスが既に使用されていないかチェック
+  // 新しいメールアドレスが既に使用されていないかチェック（STAFFテーブル）
   const { data: existingStaff } = await supabase
     .from('STAFF')
     .select('staff_id')
@@ -76,32 +74,74 @@ export async function requestEmailChange(staffId: number, newEmail: string) {
     return { success: false, error: 'このメールアドレスは既に使用されています' };
   }
 
-  // 古いメールアドレスをuser_metadataに保存（確認完了時にSTAFF更新に使用）
-  const { error: metaError } = await supabase.auth.updateUser({
-    data: { 
-      old_email: user.email,
-      pending_staff_id: staffId
+  // Admin API を使用して auth.users のメールアドレスを直接更新
+  // サービスロールキーが必要
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  
+  if (!serviceRoleKey) {
+    // サービスロールキーがない場合は従来の方法を試行
+    console.warn('SUPABASE_SERVICE_ROLE_KEY not found, falling back to standard updateUser');
+    
+    const { error: authError } = await supabase.auth.updateUser({
+      email: newEmail,
+    });
+
+    if (authError) {
+      console.error('Error requesting email change:', authError);
+      return { success: false, error: authError.message };
     }
-  });
 
-  if (metaError) {
-    console.error('Error saving old email to metadata:', metaError);
+    return { 
+      success: true, 
+      emailChangeRequested: true,
+      message: '確認メールを送信しました。メール内のリンクをクリックして変更を完了してください。'
+    };
   }
 
-  // Supabase Authにメールアドレス変更をリクエスト
-  const { error: authError } = await supabase.auth.updateUser({
-    email: newEmail,
-  });
+  // Admin API でメールアドレスを直接更新
+  const response = await fetch(
+    `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/admin/users/${user.id}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'apikey': serviceRoleKey,
+      },
+      body: JSON.stringify({
+        email: newEmail,
+        email_confirm: true, // メール確認をスキップ
+      }),
+    }
+  );
 
-  if (authError) {
-    console.error('Error requesting email change:', authError);
-    return { success: false, error: authError.message };
+  if (!response.ok) {
+    const errorData = await response.json();
+    console.error('Error updating auth email via Admin API:', errorData);
+    return { success: false, error: 'メールアドレスの更新に失敗しました' };
   }
 
+  // STAFFテーブルも更新
+  const { error: staffError } = await supabase
+    .from('STAFF')
+    .update({ email: newEmail })
+    .eq('staff_id', staffId);
+
+  if (staffError) {
+    console.error('Error updating staff email:', staffError);
+    // Auth側は更新されたが、STAFF側が失敗した場合
+    return { 
+      success: true, 
+      warning: 'ログイン用メールは更新されましたが、プロフィールの更新に失敗しました。'
+    };
+  }
+
+  revalidatePath('/mypage');
+  
   return { 
     success: true, 
-    emailChangeRequested: true,
-    message: '確認メールを送信しました。メール内のリンクをクリックして変更を完了してください。'
+    emailChanged: true,
+    message: 'メールアドレスを変更しました。次回から新しいメールアドレスでログインしてください。'
   };
 }
 

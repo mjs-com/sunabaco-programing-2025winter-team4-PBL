@@ -144,7 +144,12 @@ export default function MyPage() {
           return;
         }
 
-        if (emailResult.emailChangeRequested) {
+        // Admin API で直接変更された場合
+        if (emailResult.emailChanged) {
+          setSuccess(emailResult.message || 'メールアドレスを変更しました');
+        }
+        // 確認メールが送信された場合（サービスロールキーがない場合のフォールバック）
+        else if (emailResult.emailChangeRequested) {
           setEmailPending(true);
           setSuccess(emailResult.message || '確認メールを送信しました');
           // メールアドレスは確認完了まで元のまま
@@ -158,7 +163,7 @@ export default function MyPage() {
       } else if (!nameChanged && emailChanged) {
         // メール変更のみの場合、上で処理済み
       } else if (nameChanged && emailChanged) {
-        setSuccess('名前を更新しました。メールアドレスの変更は確認メールをご確認ください。');
+        setSuccess('名前とメールアドレスを更新しました');
       }
 
       setIsEditingProfile(false);
