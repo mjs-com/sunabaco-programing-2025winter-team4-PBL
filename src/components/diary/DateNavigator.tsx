@@ -317,7 +317,7 @@ export function DateNavigator({ currentDate }: DateNavigatorProps) {
                 {isSearchOpen && (
                   <div
                     ref={searchPanelRef}
-                    className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-lg border border-slate-200 p-4 z-50 w-[320px] sm:w-[360px]"
+                    className="fixed top-[120px] left-1/2 -translate-x-1/2 bg-white rounded-lg shadow-lg border border-slate-200 p-4 z-50 w-[320px] sm:w-[360px]"
                   >
                     {/* ヘッダー */}
                     <div className="flex items-center justify-between mb-3">
