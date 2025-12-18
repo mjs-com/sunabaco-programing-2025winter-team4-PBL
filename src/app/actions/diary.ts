@@ -1257,3 +1257,160 @@ export async function checkIfRecurringDiary(diaryId: number): Promise<{ isRecurr
   };
 }
 
+/**
+ * 日報を検索（タイトル・本文から検索）
+ */
+export async function searchDiaries(
+  keyword: string,
+  dateFrom?: string | null,
+  dateTo?: string | null,
+  currentStaffId?: number
+): Promise<DiaryWithRelations[]> {
+  const supabase = await createClient();
+
+  if (!keyword || keyword.trim() === '') {
+    return [];
+  }
+
+  const searchTerm = keyword.trim();
+
+  // 基本クエリ
+  let query = supabase
+    .from('DIARY')
+    .select(`
+      *,
+      category:CATEGORY(
+        category_id,
+        category_name,
+        is_active
+      ),
+      staff:STAFF!DIARY_staff_id_fkey(
+        staff_id,
+        name,
+        job_type_id,
+        job_type:JOB_TYPE(
+          job_type_id,
+          job_name
+        )
+      ),
+      updated_by_staff:STAFF!DIARY_updated_by_fkey(
+        staff_id,
+        name
+      ),
+      solved_by_staff:STAFF!DIARY_solved_by_fkey(
+        staff_id,
+        name
+      ),
+      user_statuses:USER_DIARY_STATUS(
+        id,
+        diary_id,
+        staff_id,
+        status,
+        updated_at,
+        staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(
+          staff_id,
+          name,
+          job_type_id,
+          job_type:JOB_TYPE(
+            job_type_id,
+            job_name
+          )
+        )
+      ),
+      replies:DIARY!parent_id(
+        *,
+        staff:STAFF!DIARY_staff_id_fkey(
+          staff_id,
+          name,
+          job_type_id,
+          job_type:JOB_TYPE(
+            job_type_id,
+            job_name
+          )
+        ),
+        user_statuses:USER_DIARY_STATUS(
+          id,
+          diary_id,
+          staff_id,
+          status,
+          updated_at,
+          staff:STAFF!USER_DIARY_STATUS_staff_id_fkey(
+            staff_id,
+            name,
+            job_type_id,
+            job_type:JOB_TYPE(
+              job_type_id,
+              job_name
+            )
+          )
+        )
+      )
+    `)
+    .eq('is_deleted', false)
+    .eq('is_hidden', false)
+    .is('parent_id', null);
+
+  // キーワード検索（タイトルまたは本文に含む）
+  query = query.or(`title.ilike.%${searchTerm}%,content.ilike.%${searchTerm}%`);
+
+  // 日付範囲フィルター
+  if (dateFrom) {
+    query = query.gte('target_date', dateFrom);
+  }
+  if (dateTo) {
+    query = query.lte('target_date', dateTo);
+  }
+
+  // 宛先フィルタ（target_staff_idがある日報は、そのスタッフのみに表示）
+  const applyTargetFilter = (q: any, includeTargetFilter: boolean) => {
+    let internalQuery = q;
+    if (includeTargetFilter) {
+      if (currentStaffId) {
+        internalQuery = internalQuery.or(`target_staff_id.is.null,target_staff_id.eq.${currentStaffId}`);
+      } else {
+        internalQuery = internalQuery.is('target_staff_id', null);
+      }
+    }
+    return internalQuery;
+  };
+
+  let data: DiaryWithRelations[] | null = null;
+  let error: any = null;
+
+  // target_staff_idフィルタありで試行
+  const queryWithTarget = applyTargetFilter(query, true).order('target_date', { ascending: false }).limit(100);
+  
+  const result1 = await queryWithTarget;
+  
+  if (result1.error) {
+    if ((result1.error as any).code === '42703' && String((result1.error as any).message || '').includes('target_staff_id')) {
+      const queryWithoutTarget = applyTargetFilter(query, false).order('target_date', { ascending: false }).limit(100);
+      const result2 = await queryWithoutTarget;
+      data = result2.data as DiaryWithRelations[];
+      error = result2.error;
+    } else {
+      error = result1.error;
+    }
+  } else {
+    data = result1.data as DiaryWithRelations[];
+  }
+
+  if (error) {
+    console.error('Error searching diaries:', error);
+    return [];
+  }
+
+  let diaries = data || [];
+
+  // 返信を日付順にソート
+  diaries.forEach(diary => {
+    if (diary.replies) {
+      diary.replies.sort((a, b) => 
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
+    }
+  });
+
+  return diaries;
+}
+

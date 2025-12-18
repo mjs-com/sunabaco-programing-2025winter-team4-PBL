@@ -1,14 +1,15 @@
+import { Suspense } from 'react';
 import { Header } from '@/components/layout/Header';
 import { DateNavigator } from '@/components/diary/DateNavigator';
 import { FloatingActionButton } from '@/components/diary/FloatingActionButton';
-import { getDiariesByDate, getCurrentStaff, getCategories } from '@/app/actions/diary';
+import { getDiariesByDate, getCurrentStaff, getCategories, searchDiaries } from '@/app/actions/diary';
 import { getMonthlyPoints } from '@/app/actions/points';
 import { toISODateString, getToday } from '@/lib/utils';
 import { DiaryListClient } from '@/components/diary/DiaryListClient';
 import { getCleaningDutyDiaryForStaff } from '@/app/actions/cleaningDuty';
 
 interface PageProps {
-  searchParams: Promise<{ date?: string; filter?: 'urgent' | 'todo'; sort?: 'asc' | 'desc' }>;
+  searchParams: Promise<{ date?: string; filter?: 'urgent' | 'todo'; sort?: 'asc' | 'desc'; search?: string; from?: string; to?: string }>;
 }
 
 export default async function HomePage({ searchParams }: PageProps) {
@@ -20,6 +21,12 @@ export default async function HomePage({ searchParams }: PageProps) {
   const currentDate = new Date(dateString + 'T00:00:00');
   const filter = params.filter;
   const isToday = dateString === todayString;
+  
+  // 検索パラメータ
+  const searchKeyword = params.search;
+  const searchFrom = params.from;
+  const searchTo = params.to;
+  const isSearchMode = !!searchKeyword;
 
   // ソート順の決定（TODO/至急の場合はデフォルトで古い順(asc)）
   let sortOrder = params.sort;
@@ -28,7 +35,7 @@ export default async function HomePage({ searchParams }: PageProps) {
   }
 
   // データ取得
-  console.log('Fetching data for date:', dateString, 'filter:', filter, 'sort:', sortOrder);
+  console.log('Fetching data for date:', dateString, 'filter:', filter, 'sort:', sortOrder, 'search:', searchKeyword);
   
   try {
     // 先にスタッフ情報を取得
@@ -43,15 +50,18 @@ export default async function HomePage({ searchParams }: PageProps) {
       ? await getMonthlyPoints(currentStaff.staff_id) 
       : 0;
 
+    // 検索モードの場合は検索結果を取得、それ以外は日付で取得
     const [diaries, categories] = await Promise.all([
-      getDiariesByDate(dateString, filter, currentStaff?.staff_id, jobTypeName, staffName, sortOrder),
+      isSearchMode
+        ? searchDiaries(searchKeyword, searchFrom, searchTo, currentStaff?.staff_id)
+        : getDiariesByDate(dateString, filter, currentStaff?.staff_id, jobTypeName, staffName, sortOrder),
       getCategories(),
     ]);
 
-    // 本日の掃除当番（当番者のみに表示）
+    // 本日の掃除当番（当番者のみに表示）- 検索モードでは表示しない
     // ※ DBにカラムが未導入の場合はエラーを握りつぶして null のまま続行
     let cleaningDutyDiary = null;
-    if (isToday && currentStaff?.staff_id) {
+    if (!isSearchMode && isToday && currentStaff?.staff_id) {
       try {
         cleaningDutyDiary = await getCleaningDutyDiaryForStaff(dateString, currentStaff.staff_id);
       } catch (e) {
@@ -66,7 +76,8 @@ export default async function HomePage({ searchParams }: PageProps) {
     console.log('Data fetched successfully', { 
       diariesCount: diaries?.length, 
       staffFound: !!currentStaff,
-      monthlyPoints
+      monthlyPoints,
+      isSearchMode
     });
 
     return (
@@ -75,7 +86,9 @@ export default async function HomePage({ searchParams }: PageProps) {
           currentPoints={monthlyPoints}
           systemRoleId={currentStaff?.system_role_id}
         />
-        <DateNavigator currentDate={currentDate} />
+        <Suspense fallback={<div className="sticky top-14 z-40 bg-slate-50 border-b border-slate-200 h-14" />}>
+          <DateNavigator currentDate={currentDate} />
+        </Suspense>
 
         <main className="container mx-auto px-4 py-6 pb-24">
           <DiaryListClient
