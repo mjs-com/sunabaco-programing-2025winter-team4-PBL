@@ -177,9 +177,9 @@ export default function LoginPage() {
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input 
-                    id="register-email" 
+                    id="login-email" 
                     name="email" 
-                    type="text" 
+                    type="email" 
                     inputMode="email" 
                     autoComplete="email" 
                     autoCapitalize="none" 
@@ -270,9 +270,9 @@ export default function LoginPage() {
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <Input 
-                    id="register-email" 
+                    id="login-email" 
                     name="email" 
-                    type="text" 
+                    type="email" 
                     inputMode="email" 
                     autoComplete="email" 
                     autoCapitalize="none" 

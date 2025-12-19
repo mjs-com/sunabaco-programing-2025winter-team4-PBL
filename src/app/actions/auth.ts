@@ -14,17 +14,65 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
 
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    return { error: error.message };
+  // 入力バリデーション
+  if (!email || !password) {
+    return { error: 'メールアドレスとパスワードを入力してください' };
   }
 
-  revalidatePath('/', 'layout');
-  redirect('/');
+  try {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
+
+    if (error) {
+      console.error('Login error:', error);
+      
+      // エラーメッセージを日本語に変換
+      let errorMessage = 'ログインに失敗しました';
+      
+      if (error.message.includes('Invalid login credentials')) {
+        errorMessage = 'メールアドレスまたはパスワードが間違っています';
+      } else if (error.message.includes('Email not confirmed')) {
+        errorMessage = 'メールアドレスの確認が完了していません。登録メールの確認リンクをクリックしてください。';
+      } else if (error.message.includes('User not found')) {
+        errorMessage = 'このメールアドレスは登録されていません';
+      } else if (error.message.includes('Too many requests')) {
+        errorMessage = '短時間に複数回のログイン試行がありました。しばらく時間をおいてからお試しください。';
+      } else if (error.message.includes('Network error')) {
+        errorMessage = 'ネットワークエラーが発生しました。インターネット接続を確認してください。';
+      } else {
+        errorMessage = `ログインエラー: ${error.message}`;
+      }
+      
+      return { error: errorMessage };
+    }
+
+    // アカウントが有効か確認
+    if (data.user) {
+      const { data: staffData, error: staffError } = await supabase
+        .from('staffs')
+        .select('is_deleted')
+        .eq('email', email)
+        .single();
+
+      if (staffError || !staffData) {
+        return { error: 'ユーザー情報の取得に失敗しました' };
+      }
+
+      if (staffData.is_deleted) {
+        return { error: 'このアカウントは無効化されています。管理者にお問い合わせください。' };
+      }
+    }
+
+    revalidatePath('/', 'layout');
+    redirect('/');
+  } catch (error) {
+    console.error('Unexpected login error:', error);
+    return { 
+      error: '予期せぬエラーが発生しました。時間をおいて再度お試しください。' 
+    };
+  }
 }
 
 /**

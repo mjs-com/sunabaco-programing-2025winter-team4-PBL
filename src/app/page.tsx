@@ -8,6 +8,7 @@ import { getMonthlyPoints } from '@/app/actions/points';
 import { toISODateString, getToday } from '@/lib/utils';
 import { DiaryListClient } from '@/components/diary/DiaryListClient';
 import { getCleaningDutyDiaryForStaff } from '@/app/actions/cleaningDuty';
+import { LogoutButton } from '@/components/auth/LogoutButton';
 
 interface PageProps {
   searchParams: Promise<{ date?: string; filter?: 'urgent' | 'todo'; sort?: 'asc' | 'desc'; search?: string; from?: string; to?: string }>;
@@ -100,14 +101,9 @@ export default async function HomePage({ searchParams }: PageProps) {
                   {currentStaff.name} さん
                 </h2>
                 <span className="text-xs text-slate-500 leading-none block">お疲れ様です！</span>
-                <form action="/api/auth/signout" method="POST" className="block -mt-1">
-                  <button 
-                    type="submit"
-                    className="text-xs text-red-600 hover:underline leading-none -mt-1"  // -mt-1 で上に詰める
-                  >
-                    ログアウト
-                  </button>
-                </form>
+                <div className="block -mt-1">
+                  <LogoutButton />
+                </div>
               </div>
             </div>
             )}
