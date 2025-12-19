@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
 import { Header } from '@/components/layout/Header';
+import { LogoutButton } from '@/components/LogoutButton';
 import { DateNavigator } from '@/components/diary/DateNavigator';
 import { FloatingActionButton } from '@/components/diary/FloatingActionButton';
 import { getDiariesByDate, getCurrentStaff, getCategories, searchDiaries } from '@/app/actions/diary';
@@ -100,17 +101,10 @@ export default async function HomePage({ searchParams }: PageProps) {
                   {currentStaff.name} さん
                 </h2>
                 <span className="text-xs text-slate-500 leading-none block">お疲れ様です！</span>
-                <form action="/api/auth/signout" method="POST" className="block -mt-1">
-                  <button 
-                    type="submit"
-                    className="text-xs text-red-600 hover:underline leading-none -mt-1"  // -mt-1 で上に詰める
-                  >
-                    ログアウト
-                  </button>
-                </form>
+                <LogoutButton />
               </div>
             </div>
-            )}
+          )}
           <DiaryListClient
             diaries={mergedDiaries}
             currentUserId={currentStaff?.staff_id}
