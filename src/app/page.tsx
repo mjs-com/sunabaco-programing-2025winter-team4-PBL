@@ -1,8 +1,7 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { LogOut } from 'lucide-react';
-import { logout } from '@/app/actions/auth';
 import { Header } from '@/components/layout/Header';
+import { LogoutButton } from '@/components/LogoutButton';
 import { DateNavigator } from '@/components/diary/DateNavigator';
 import { FloatingActionButton } from '@/components/diary/FloatingActionButton';
 import { getDiariesByDate, getCurrentStaff, getCategories, searchDiaries } from '@/app/actions/diary';
@@ -102,15 +101,10 @@ export default async function HomePage({ searchParams }: PageProps) {
                   {currentStaff.name} さん
                 </h2>
                 <span className="text-xs text-slate-500 leading-none block">お疲れ様です！</span>
-                <form action={logout}>
-                  <button type="submit" className="flex items-center gap-1 text-xs text-red-600 hover:bg-red-50 transition-colors mb-4">
-                    <LogOut className="h-4 w-4" />
-                      <span>ログアウト</span>
-                  </button>
-                </form>
+                <LogoutButton />
               </div>
             </div>
-            )}
+          )}
           <DiaryListClient
             diaries={mergedDiaries}
             currentUserId={currentStaff?.staff_id}
